@@ -4,15 +4,18 @@ TwoDegrees FastAPI 애플리케이션 엔트리포인트
 """
 
 from typing import Optional
+import os
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 import bcrypt
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from database import Base, engine, get_db
 from models import Gender, User
 from schemas import (
+    AdminAuthRequest,
     AuthRequest,
     AuthResponse,
     UserCreate,
@@ -70,8 +73,11 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     - 입력받은 평문 비밀번호를 bcrypt로 해싱하여 저장합니다.
     - contact 중복 등록을 방지합니다.
     """
-    # 연락처 중복 검사
-    existing = db.query(User).filter(User.contact == payload.contact).first()
+    # 연락처 중복 검사 (하이픈 무시)
+    normalized_contact = payload.contact.replace("-", "")
+    existing = db.query(User).filter(
+        func.replace(User.contact, "-", "") == normalized_contact
+    ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -104,10 +110,13 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
 def authenticate_user(payload: AuthRequest, db: Session = Depends(get_db)):
     """
     contact와 password를 검증합니다.
-    - 성공 시 해당 유저의 id(UUID)와 name을 반환합니다.
-    - 실패 시 401을 반환합니다. (보안: 계정 존재 여부를 노출하지 않습니다.)
+    - 실패 시 401을 반환합니다.
+    - 연락처 하이픈('-') 입력 여부에 상관없이 검증합니다.
     """
-    user = db.query(User).filter(User.contact == payload.contact).first()
+    normalized_contact = payload.contact.replace("-", "")
+    user = db.query(User).filter(
+        func.replace(User.contact, "-", "") == normalized_contact
+    ).first()
 
     # 유저 미존재 또는 비밀번호 불일치 — 동일 에러 메시지로 정보 누출 방지
     if not user or not verify_password(payload.password, user.password_hash):
@@ -226,3 +235,57 @@ def list_users(
         query = query.filter(User.is_active == is_active)
 
     return query.all()
+
+
+# ---------------------------------------------------------------------------
+# POST /api/admin/auth – 관리자 인증
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/api/admin/auth",
+    summary="관리자 인증",
+    tags=["admin"],
+)
+def admin_auth(payload: AdminAuthRequest):
+    """
+    .env의 ADMIN_PASSWORD와 일치하면 인증 성공.
+    ADMIN_PASSWORD가 설정되지 않으면 서비스 사용 불가 상태를 반환합니다.
+    """
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if not admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="관리자 비밀번호가 설정되지 않았습니다. 서버 환경변수를 확인하세요.",
+        )
+
+    if payload.password != admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="관리자 비밀번호가 올바르지 않습니다.",
+        )
+
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/users/{user_id} – 유저 삭제 (관리자 전용)
+# ---------------------------------------------------------------------------
+
+@app.delete(
+    "/api/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="유저 삭제 (관리자)",
+    tags=["admin"],
+)
+def delete_user(user_id: str, db: Session = Depends(get_db)):
+    """
+    user_id(UUID)에 해당하는 유저를 영구 삭제합니다.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 유저를 찾을 수 없습니다.",
+        )
+    db.delete(user)
+    db.commit()

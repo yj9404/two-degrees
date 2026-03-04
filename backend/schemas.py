@@ -29,7 +29,7 @@ class _UserBase(BaseModel):
     job: str = Field(..., max_length=100, examples=["개발자"])
     referrer_name: str = Field(..., max_length=50, examples=["김철수"])
     desired_conditions: str = Field(..., min_length=10, examples=["성격이 밝고 유머 감각이 있는 분"])
-    deal_breakers: str = Field(..., min_length=5, examples=["흡연자, 종교 강요"])
+    deal_breakers: str = Field(..., min_length=10, examples=["흡연자, 종교 강요"])
 
     # 선택 항목
     photo_url: Optional[str] = Field(None, max_length=500)
@@ -100,6 +100,12 @@ class AuthResponse(BaseModel):
 
     user_id: str
     name: str
+
+
+class AdminAuthRequest(BaseModel):
+    """POST /api/admin/auth 요청 바디"""
+
+    password: str
 
 
 # ---------------------------------------------------------------------------
