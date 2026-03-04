@@ -32,7 +32,7 @@ class _UserBase(BaseModel):
     deal_breakers: str = Field(..., min_length=10, examples=["흡연자, 종교 강요"])
 
     # 선택 항목
-    photo_url: Optional[str] = Field(None, max_length=500)
+    instagram_id: Optional[str] = Field(None, max_length=100, examples=["__instagram_id__"])
     height: Optional[int] = Field(None, ge=140, le=220)
     active_area: Optional[str] = Field(None, max_length=100, examples=["서울 강남"])
     education: Optional[str] = Field(None, max_length=100, examples=["서울대 컴퓨터공학과"])
@@ -74,7 +74,7 @@ class UserUpdate(BaseModel):
     referrer_name: Optional[str] = Field(None, max_length=50)
     desired_conditions: Optional[str] = None
     deal_breakers: Optional[str] = None
-    photo_url: Optional[str] = Field(None, max_length=500)
+    instagram_id: Optional[str] = Field(None, max_length=100)
     height: Optional[int] = Field(None, ge=140, le=220)
     active_area: Optional[str] = Field(None, max_length=100)
     education: Optional[str] = Field(None, max_length=100)

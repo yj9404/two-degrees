@@ -63,7 +63,7 @@ class User(Base):
     is_active = Column(Boolean, nullable=False, default=True)  # 매칭 풀 노출 여부
 
     # ── 선택 항목 (nullable=True) ────────────────────────────────────────────
-    photo_url = Column(String(500), nullable=True)        # 프로필 사진 URL
+    instagram_id = Column(String(100), nullable=True)     # 인스타그램 아이디
     height = Column(Integer, nullable=True)               # 키 (cm)
     active_area = Column(String(100), nullable=True)      # 주 활동 지역
     education = Column(String(100), nullable=True)        # 학력
