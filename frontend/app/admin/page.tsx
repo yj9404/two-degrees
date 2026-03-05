@@ -45,6 +45,7 @@ function UserDetailDialog({
         ["키", user.height ? `${user.height}cm` : "-"],
         ["학력", user.education ?? "-"],
         ["직장위치", user.workplace ?? "-"],
+        ["MBTI", user.mbti ?? "-"],
         ["흡연", user.smoking_status ? SMOKING_LABEL[user.smoking_status] : "-"],
         ["종교", user.religion ?? "-"],
         ["원하는 조건", user.desired_conditions],
