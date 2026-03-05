@@ -118,6 +118,7 @@ export default function EditProfilePage() {
                     active_area: user.active_area ?? "",
                     education: user.education ?? "",
                     workplace: user.workplace ?? "",
+                    mbti: user.mbti ?? "",
                     smoking_status: user.smoking_status ?? undefined,
                     religion: user.religion ?? "",
                 });
@@ -394,6 +395,17 @@ export default function EditProfilePage() {
                                 placeholder="예: 판교, 여의도"
                                 value={form.workplace ?? ""}
                                 onChange={handleChange}
+                            />
+                        </Field>
+
+                        <Field label="MBTI">
+                            <Input
+                                id="edit-mbti"
+                                name="mbti"
+                                placeholder="예: ENFP"
+                                value={form.mbti ?? ""}
+                                onChange={handleChange}
+                                maxLength={4}
                             />
                         </Field>
 

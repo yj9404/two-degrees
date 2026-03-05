@@ -70,6 +70,7 @@ class User(Base):
     active_area = Column(String(100), nullable=True)      # 주 활동 지역
     education = Column(String(100), nullable=True)        # 학력
     workplace = Column(String(100), nullable=True)        # 직장 위치
+    mbti = Column(String(4), nullable=True)               # MBTI
     smoking_status = Column(Enum(SmokingStatus), nullable=True)
     religion = Column(String(50), nullable=True)
 

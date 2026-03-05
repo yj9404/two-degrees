@@ -43,6 +43,7 @@ const INITIAL_FORM: Partial<UserCreatePayload> = {
     active_area: "",
     education: "",
     workplace: "",
+    mbti: "",
     smoking_status: undefined,
     religion: "",
     photo_urls: [],
@@ -360,6 +361,18 @@ export default function RegistrationForm() {
                         placeholder="예: 판교, 여의도"
                         value={form.workplace ?? ""}
                         onChange={handleChange}
+                    />
+                </Field>
+
+                {/* MBTI */}
+                <Field label="MBTI">
+                    <Input
+                        id="mbti"
+                        name="mbti"
+                        placeholder="예: ENFP"
+                        value={form.mbti ?? ""}
+                        onChange={handleChange}
+                        maxLength={4}
                     />
                 </Field>
 

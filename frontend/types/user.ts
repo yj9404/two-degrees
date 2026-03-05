@@ -23,6 +23,7 @@ export interface UserCreatePayload {
     active_area?: string;
     education?: string;
     workplace?: string;
+    mbti?: string;
     smoking_status?: SmokingStatus;
     religion?: string;
 }
@@ -42,6 +43,7 @@ export interface UserUpdatePayload {
     active_area?: string;
     education?: string;
     workplace?: string;
+    mbti?: string;
     smoking_status?: SmokingStatus;
     religion?: string;
     is_active?: boolean;

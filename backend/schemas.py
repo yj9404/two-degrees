@@ -38,6 +38,7 @@ class _UserBase(BaseModel):
     active_area: Optional[str] = Field(None, max_length=100, examples=["서울 강남"])
     education: Optional[str] = Field(None, max_length=100, examples=["서울대 컴퓨터공학과"])
     workplace: Optional[str] = Field(None, max_length=100, examples=["판교"])
+    mbti: Optional[str] = Field(None, max_length=4, examples=["ENFP"])
     smoking_status: Optional[SmokingStatus] = None
     religion: Optional[str] = Field(None, max_length=50, examples=["무교"])
 
@@ -89,6 +90,7 @@ class UserUpdate(BaseModel):
     active_area: Optional[str] = Field(None, max_length=100)
     education: Optional[str] = Field(None, max_length=100)
     workplace: Optional[str] = Field(None, max_length=100)
+    mbti: Optional[str] = Field(None, max_length=4)
     smoking_status: Optional[SmokingStatus] = None
     religion: Optional[str] = Field(None, max_length=50)
     is_active: Optional[bool] = None
