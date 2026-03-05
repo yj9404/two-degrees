@@ -5,8 +5,12 @@ TwoDegrees FastAPI 애플리케이션 엔트리포인트
 
 from typing import Optional
 import os
+import urllib.parse
+
+import httpx
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import bcrypt
 from sqlalchemy.orm import Session
@@ -330,3 +334,38 @@ def delete_user(user_id: str, db: Session = Depends(get_db)):
         )
     db.delete(user)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/admin/photos/proxy – 이미지 프록시 (강제 다운로드)
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/admin/photos/proxy",
+    summary="이미지 프록시 다운로드 (CORS 우회)",
+    tags=["admin"],
+)
+def proxy_photo(
+    url: str = Query(..., description="다운로드할 이미지 Public URL"),
+    name: str = Query("photo", description="저장 파일명 (확장자 제외)"),
+):
+    """
+    Cloudflare R2 등 cross-origin 이미지를 브라우저가 직접 다운로드할 수 있도록
+    백엔드가 프록시로 가져와 Content-Disposition: attachment로 응답합니다.
+    """
+    try:
+        resp = httpx.get(url, timeout=30, follow_redirects=True)
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+
+    content_type = resp.headers.get("content-type", "image/jpeg")
+    ext = content_type.split("/")[-1].split(";")[0]  # jpeg, png, webp 등
+    ext = ext if ext in {"jpeg", "png", "webp", "gif"} else "jpg"
+
+    safe_name = urllib.parse.quote(f"{name}.{ext}")
+    headers = {
+        "Content-Disposition": f'attachment; filename*=UTF-8\'\'{safe_name}',
+        "Content-Type": content_type,
+    }
+    return StreamingResponse(iter([resp.content]), media_type=content_type, headers=headers)

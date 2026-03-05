@@ -32,7 +32,39 @@ function UserDetailDialog({
     user: UserReadAdmin | null;
     onClose: () => void;
 }) {
+    const [downloading, setDownloading] = useState(false);
+
     if (!user) return null;
+
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+    const handleDownloadPhotos = async () => {
+        if (!user.photo_urls || user.photo_urls.length === 0) return;
+        setDownloading(true);
+        try {
+            for (let i = 0; i < user.photo_urls.length; i++) {
+                const url = user.photo_urls[i];
+                const name = `${user.name}_${i + 1}`;
+                const proxyUrl = `${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`;
+                const res = await fetch(proxyUrl);
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = blobUrl;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+                // 브라우저 다운로드 차단 방지를 위한 짧은 딜레이
+                if (i < user.photo_urls.length - 1) {
+                    await new Promise((r) => setTimeout(r, 400));
+                }
+            }
+        } finally {
+            setDownloading(false);
+        }
+    };
 
     const rows: [string, React.ReactNode][] = [
         ["이름", user.name],
@@ -114,7 +146,18 @@ function UserDetailDialog({
                     </div>
                 )}
 
-                <DialogFooter>
+                <DialogFooter className="flex-col gap-2">
+                    {user.photo_urls && user.photo_urls.length > 0 && (
+                        <Button
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                            disabled={downloading}
+                            onClick={handleDownloadPhotos}
+                        >
+                            {downloading
+                                ? "다운로드 중..."
+                                : `📥 사진 전체 다운로드 (${user.photo_urls.length}장)`}
+                        </Button>
+                    )}
                     <Button variant="outline" className="w-full" onClick={onClose}>
                         닫기
                     </Button>
