@@ -15,7 +15,7 @@
 
 - **Frontend**: Next.js 15 (App Router), React, TypeScript, Tailwind CSS, shadcn/ui
 - **Backend**: FastAPI, SQLAlchemy (SQLite/PostgreSQL 지원), Pydantic v2
-- **Infrastructure**: Vercel (Frontend 배포), Railway/Render (Backend 배포), Neon/Supabase (PostgreSQL), Cloudflare R2 (이미지 스토리지)
+- **Infrastructure**: Vercel (Frontend 배포), Render (Backend 무료 배포), Neon (PostgreSQL 무료 데이터베이스), Cloudflare R2 (이미지 스토리지 10GB 무료)
 
 ---
 
@@ -69,24 +69,29 @@ npm run dev
 
 ## 🚀 배포(Deployment) 가이드
 
-배포는 Vercel(프론트엔드)과 Railway(백엔드)를 권장합니다. 백엔드 DB로는 Neon이나 Supabase 등 무료 PostgreSQL 서비스를 사용할 수 있습니다.
+배포는 모두 **무료로 제공되는 서비스(Free Tier)** 들을 기준으로 작성되었습니다. Frontend는 Vercel, Backend는 Render, DB는 Neon 서버리스 Postgres, 이미지 스토리지는 Cloudflare R2를 사용합니다.
 
-### 1. Backend 배포 (Railway 기준)
+### 1. Backend 배포 (Render 무료 플랜 기준)
 
-1. [Railway](https://railway.app/) 대시보드에서 **New Project** → **Deploy from GitHub repo**를 선택합니다.
-2. `TwoDegrees` 리포지토리를 선택한 후, 배포할 **Root Directory**를 `/backend` 로 설정합니다.
-3. 배포 환경 변수(`Variables`)에 다음 항목들을 추가합니다:
-   - `DATABASE_URL`: (예) `postgresql://user:pass@host/dbname?sslmode=require` (Neon 등에서 발급받은 URL)
+1. [Render](https://render.com/) 대시보드에서 **New** → **Web Service**를 선택하고 GitHub 리포지토리를 연결합니다.
+2. 아래와 같이 설정합니다:
+   - **Root Directory**: `backend`
+   - **Environment**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - **Instance Type**: `Free` 선택
+3. **Environment Variables** (환경 변수) 탭에서 다음 항목들을 추가합니다:
+   - `DATABASE_URL`: (예) `postgresql://...!neon.tech/dbname?sslmode=require` ([Neon](https://neon.tech/)에서 생성한 무료 DB URL)
    - `ADMIN_PASSWORD`: (예) `your_strong_admin_password`
-   - **(선택) 이미지 업로드 설정 (Cloudflare R2 등)**
+   - **이미지 업로드 설정 (Cloudflare R2 - 매월 10GB 무료)**
      - `AWS_ACCESS_KEY_ID`: R2 토큰의 Access Key
      - `AWS_SECRET_ACCESS_KEY`: R2 토큰의 Secret Key
-     - `AWS_REGION`: `auto` (R2인 경우)
+     - `AWS_REGION`: `auto`
      - `S3_BUCKET_NAME`: 생성한 버킷 이름
-     - `S3_ENDPOINT_URL`: `https://<account_id>.r2.cloudflarestorage.com` (R2인 경우)
-     - `S3_PUBLIC_BASE_URL`: 퍼블릭 캐시 및 CDN 도메인 (`https://pub-<hash>.r2.dev`)
-4. 환경변수를 모두 넣고 배포를 진행합니다.
-5. 배포 완료 후 생성된 백엔드 도메인을 복사해 둡니다. (예: `https://twodegrees-backend.up.railway.app`)
+     - `S3_ENDPOINT_URL`: `https://<account_id>.r2.cloudflarestorage.com`
+     - `S3_PUBLIC_BASE_URL`: 퍼블릭 캐시 및 CDN 도메인 (예: `https://pub-<hash>.r2.dev`)
+4. 설정을 완료하고 **Create Web Service**를 클릭하여 배포합니다. (참고: Render 무료 서버는 15분간 요청이 없으면 Sleep 모드에 들어가며, 다음 요청 시 깨어나는 데 30초 정도 소요될 수 있습니다.)
+5. 배포 완료 후 제공된 백엔드 도메인 URL을 복사해 둡니다. (예: `https://twodegrees.onrender.com`)
 
 ### 2. Frontend 배포 (Vercel 기준)
 
@@ -94,7 +99,7 @@ npm run dev
 2. `TwoDegrees` 프로젝트를 Import 합니다.
 3. **Framework Preset**은 `Next.js`로 두고, **Root Directory**는 `frontend`를 선택합니다.
 4. **Environment Variables**에 다음을 추가합니다:
-   - `NEXT_PUBLIC_API_URL`: 위에서 복사한 백엔드 도메인 주소 (예: `https://twodegrees-backend.up.railway.app`)
+   - `NEXT_PUBLIC_API_URL`: 위에서 복사한 백엔드 도메인 주소 (예: `https://twodegrees.onrender.com`)
 5. **Deploy** 버튼을 클릭하여 배포합니다.
 
 ### 3. 클라우드 스토리지(R2/S3) CORS 설정 추가
