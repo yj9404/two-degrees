@@ -11,7 +11,7 @@ Pydantic v2 기반 요청·응답 스키마 정의
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -33,12 +33,21 @@ class _UserBase(BaseModel):
 
     # 선택 항목
     instagram_id: Optional[str] = Field(None, max_length=100, examples=["__instagram_id__"])
+    photo_urls: List[str] = Field(default_factory=list)
     height: Optional[int] = Field(None, ge=140, le=220)
     active_area: Optional[str] = Field(None, max_length=100, examples=["서울 강남"])
     education: Optional[str] = Field(None, max_length=100, examples=["서울대 컴퓨터공학과"])
     workplace: Optional[str] = Field(None, max_length=100, examples=["판교"])
     smoking_status: Optional[SmokingStatus] = None
     religion: Optional[str] = Field(None, max_length=50, examples=["무교"])
+
+    @field_validator("photo_urls", mode="before")
+    @classmethod
+    def coerce_photo_urls(cls, v):
+        """DB에서 NULL로 조회되는 경우 빈 리스트로 정규화합니다."""
+        if v is None:
+            return []
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +84,7 @@ class UserUpdate(BaseModel):
     desired_conditions: Optional[str] = None
     deal_breakers: Optional[str] = None
     instagram_id: Optional[str] = Field(None, max_length=100)
+    photo_urls: Optional[List[str]] = None  # None = 변경 없음
     height: Optional[int] = Field(None, ge=140, le=220)
     active_area: Optional[str] = Field(None, max_length=100)
     education: Optional[str] = Field(None, max_length=100)
@@ -106,6 +116,14 @@ class AdminAuthRequest(BaseModel):
     """POST /api/admin/auth 요청 바디"""
 
     password: str
+
+
+class PresignedUrlResponse(BaseModel):
+    """GET /api/upload/presigned-url 응답"""
+
+    presigned_url: str
+    object_key: str
+    public_url: str
 
 
 # ---------------------------------------------------------------------------

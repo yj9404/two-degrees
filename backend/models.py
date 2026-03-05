@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    JSON,
 )
 from sqlalchemy.dialects.sqlite import TEXT as UUID_TEXT
 
@@ -64,6 +65,7 @@ class User(Base):
 
     # ── 선택 항목 (nullable=True) ────────────────────────────────────────────
     instagram_id = Column(String(100), nullable=True)     # 인스타그램 아이디
+    photo_urls = Column(JSON, nullable=True, default=list) # 사진 URL 목록 (JSON 배열)
     height = Column(Integer, nullable=True)               # 키 (cm)
     active_area = Column(String(100), nullable=True)      # 주 활동 지역
     education = Column(String(100), nullable=True)        # 학력

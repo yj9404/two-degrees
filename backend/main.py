@@ -18,6 +18,7 @@ from schemas import (
     AdminAuthRequest,
     AuthRequest,
     AuthResponse,
+    PresignedUrlResponse,
     UserCreate,
     UserReadAdmin,
     UserUpdate,
@@ -181,6 +182,15 @@ def update_user(
 
     # 실제로 전달된 필드만 업데이트 (None을 의도적으로 보냈는지, 아예 안 보냈는지 구분)
     update_data = payload.model_dump(exclude_unset=True)
+
+    # photo_urls 장 수 제한 (최대 10장)
+    if "photo_urls" in update_data and update_data["photo_urls"] is not None:
+        if len(update_data["photo_urls"]) > 10:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="사진은 최대 10장까지 업로드할 수 있습니다.",
+            )
+
     for field, value in update_data.items():
         setattr(user, field, value)
 
@@ -235,6 +245,37 @@ def list_users(
         query = query.filter(User.is_active == is_active)
 
     return query.all()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/upload/presigned-url – S3 Presigned URL 발급
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/upload/presigned-url",
+    response_model=PresignedUrlResponse,
+    summary="S3 업로드용 Presigned URL 발급",
+    tags=["upload"],
+)
+def get_presigned_url(
+    filename: str = Query(..., description="원본 파일명 (예: photo.jpg)"),
+    content_type: str = Query(..., description="MIME 타입 (예: image/jpeg)"),
+):
+    """
+    S3(AWS S3 / Cloudflare R2 등)에 이미지를 직접 업로드하기 위한 Presigned URL을 반환합니다.
+    - S3 환경변수(AWS_ACCESS_KEY_ID 등)가 미설정시 503을 반환합니다.
+    - 허용 MIME: image/jpeg, image/png, image/webp
+    """
+    try:
+        from utils.s3 import generate_presigned_upload
+        result = generate_presigned_upload(filename, content_type)
+        return PresignedUrlResponse(**result)
+    except EnvironmentError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 # ---------------------------------------------------------------------------
