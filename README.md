@@ -15,7 +15,7 @@
 
 - **Frontend**: Next.js 15 (App Router), React, TypeScript, Tailwind CSS, shadcn/ui
 - **Backend**: FastAPI, SQLAlchemy (SQLite/PostgreSQL 지원), Pydantic v2
-- **Infrastructure**: Vercel (Frontend 배포), Render (Backend 무료 배포), Neon (PostgreSQL 무료 데이터베이스), Cloudflare R2 (이미지 스토리지 10GB 무료)
+- **Infrastructure**: Vercel (Frontend 배포), GCP Cloud Run (Backend 무상 배포), Neon (PostgreSQL 무료 데이터베이스), Cloudflare R2 (이미지 스토리지 10GB 무료)
 
 ---
 
@@ -69,29 +69,48 @@ npm run dev
 
 ## 🚀 배포(Deployment) 가이드
 
-배포는 모두 **무료로 제공되는 서비스(Free Tier)** 들을 기준으로 작성되었습니다. Frontend는 Vercel, Backend는 Render, DB는 Neon 서버리스 Postgres, 이미지 스토리지는 Cloudflare R2를 사용합니다.
+배포는 모두 **무료로 제공되는 서비스(Free Tier)** 들을 기준으로 작성되었습니다. Frontend는 Vercel, Backend는 GCP Cloud Run, DB는 Neon 서버리스 Postgres, 이미지 스토리지는 Cloudflare R2를 사용합니다.
 
-### 1. Backend 배포 (Render 무료 플랜 기준)
+### 1. Backend 배포 (GCP Cloud Run 무료 플랜 기준)
 
-1. [Render](https://render.com/) 대시보드에서 **New** → **Web Service**를 선택하고 GitHub 리포지토리를 연결합니다.
-2. 아래와 같이 설정합니다:
-   - **Root Directory**: `backend`
-   - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-   - **Instance Type**: `Free` 선택
-3. **Environment Variables** (환경 변수) 탭에서 다음 항목들을 추가합니다:
-   - `DATABASE_URL`: (예) `postgresql://...!neon.tech/dbname?sslmode=require` ([Neon](https://neon.tech/)에서 생성한 무료 DB URL)
-   - `ADMIN_PASSWORD`: (예) `your_strong_admin_password`
-   - **이미지 업로드 설정 (Cloudflare R2 - 매월 10GB 무료)**
-     - `AWS_ACCESS_KEY_ID`: R2 토큰의 Access Key
-     - `AWS_SECRET_ACCESS_KEY`: R2 토큰의 Secret Key
+Google Cloud Platform(GCP)의 Cloud Run은 매월 200만 건의 요청이 무료로 제공되며, 콜드 스타트가 빠르고 안정적입니다.
+
+1. **GCP 프로젝트 준비**
+   - [Google Cloud Console](https://console.cloud.google.com/)에서 새 프로젝트를 생성합니다.
+   - 결제 정보(신용카드)를 등록해야 Cloud Run 구동이 가능합니다. (가입 시 지급되는 크레딧 및 매월 주어지는 무료 할당량 내에서 과금되지 않습니다.)
+   - Cloud Run API를 활성화합니다.
+   
+2. **gcloud CLI 설치 및 로그인**
+   - 로컬 환경에 [gcloud CLI](https://cloud.google.com/sdk/docs/install)를 설치합니다.
+   - 터미널에서 아래 명령어로 로그인 및 프로젝트 설정을 진행합니다.
+     ```bash
+     gcloud auth login
+     gcloud config set project [본인의_GCP_프로젝트_ID]
+     ```
+
+3. **Cloud Run 배포**
+   - `backend` 디렉토리로 이동 후 소스코드를 빌드하고 배포합니다.
+     ```bash
+     cd backend
+     gcloud run deploy twodegrees-backend --source . --region asia-northeast3 (서울 리전 추천) --allow-unauthenticated
+     ```
+   - 명령어 실행 중 터미널 프롬프트에서 `Cloud Build API` 활성화 등을 물어보면 `y`를 입력합니다.
+
+4. **환경 변수 설정 (중요)**
+   - 배포가 완료되면 GCP Console의 **Cloud Run** 메뉴 → 생성된 서비스(`twodegrees-backend`) 클릭 → **버전 수정 및 새 버전 배포** 메뉴로 들어갑니다.
+   - **컨테이너, 연결, 보안** 탭 아래의 **변수 및 보안 비밀** 탭에서 로컬 컴퓨터의 `.env.example`에 있던 다음 값들을 추가합니다:
+     - `DATABASE_URL`: (예) `postgresql://...!neon.tech/dbname?sslmode=require` ([Neon](https://neon.tech/) 무료 DB URL)
+     - `ADMIN_PASSWORD`: (예) `your_strong_admin_password`
+     - `AWS_ACCESS_KEY_ID`: R2 Access Key
+     - `AWS_SECRET_ACCESS_KEY`: R2 Secret Key
      - `AWS_REGION`: `auto`
      - `S3_BUCKET_NAME`: 생성한 버킷 이름
      - `S3_ENDPOINT_URL`: `https://<account_id>.r2.cloudflarestorage.com`
-     - `S3_PUBLIC_BASE_URL`: 퍼블릭 캐시 및 CDN 도메인 (예: `https://pub-<hash>.r2.dev`)
-4. 설정을 완료하고 **Create Web Service**를 클릭하여 배포합니다. (참고: Render 무료 서버는 15분간 요청이 없으면 Sleep 모드에 들어가며, 다음 요청 시 깨어나는 데 30초 정도 소요될 수 있습니다.)
-5. 배포 완료 후 제공된 백엔드 도메인 URL을 복사해 둡니다. (예: `https://twodegrees.onrender.com`)
+     - `S3_PUBLIC_BASE_URL`: 퍼블릭 캐시/CDN (예: `https://pub-<hash>.r2.dev`)
+   - 환경 변수 입력 후 **배포** 버튼을 눌러 새 설정을 적용합니다.
+
+5. **API URL 생성 완료**
+   - 서비스 페이지 상단에 표기된 URL 주소를 복사해 둡니다. (예: `https://twodegrees-backend-xxxx.run.app`)
 
 ### 2. Frontend 배포 (Vercel 기준)
 
@@ -99,7 +118,7 @@ npm run dev
 2. `TwoDegrees` 프로젝트를 Import 합니다.
 3. **Framework Preset**은 `Next.js`로 두고, **Root Directory**는 `frontend`를 선택합니다.
 4. **Environment Variables**에 다음을 추가합니다:
-   - `NEXT_PUBLIC_API_URL`: 위에서 복사한 백엔드 도메인 주소 (예: `https://twodegrees.onrender.com`)
+   - `NEXT_PUBLIC_API_URL`: 위에서 복사한 Cloud Run 백엔드 도메인 주소 (예: `https://twodegrees-backend-xxxx.run.app`)
 5. **Deploy** 버튼을 클릭하여 배포합니다.
 
 ### 3. 클라우드 스토리지(R2/S3) CORS 설정 추가
@@ -111,8 +130,8 @@ npm run dev
 [
   {
     "AllowedOrigins": [
-      "http://localhost:3000",
-      "https://twodegrees.vercel.app"
+      "https://twodegrees.vercel.app",
+      "https://twodegrees-backend-xxxx.run.app"
     ],
     "AllowedMethods": [
       "PUT",
