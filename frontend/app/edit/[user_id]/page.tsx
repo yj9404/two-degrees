@@ -150,7 +150,15 @@ export default function EditProfilePage() {
         setErrorMsg("");
 
         try {
-            await updateUser(user_id, { ...form, is_active: isActive });
+            // 빈 문자열 필드는 undefined로 정리하여 백엔드로 전송하지 않음
+            const raw = { ...form, is_active: isActive };
+            const cleanedForm: UserUpdatePayload = {};
+            for (const [k, v] of Object.entries(raw)) {
+                if (v !== "") {
+                    (cleanedForm as Record<string, unknown>)[k] = v;
+                }
+            }
+            await updateUser(user_id, cleanedForm);
             setSaveStatus("success");
         } catch (err) {
             setSaveStatus("error");
