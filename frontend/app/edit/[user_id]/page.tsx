@@ -646,10 +646,50 @@ export default function EditProfilePage() {
                         ← 인증 페이지로 돌아가기
                     </Button>
                 </form>
-
                 <p className="text-center text-slate-500 text-xs pb-8">
                     입력하신 정보는 매칭 목적으로만 사용됩니다.
                 </p>
+
+                {/* 매칭 진행 방식 FAQ */}
+                <div className="pt-2 pb-4 space-y-3">
+                    <details className="group bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden text-sm">
+                        <summary className="flex items-center justify-between cursor-pointer p-4 font-semibold text-slate-800 list-none leading-tight [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors">
+                            <span>💡 매칭은 어떻게 진행되나요?</span>
+                            <span className="transition duration-300 group-open:-rotate-180 text-slate-400">
+                                <svg fill="none" height="20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="20"><path d="M6 9l6 6 6-6"></path></svg>
+                            </span>
+                        </summary>
+                        <div className="px-4 pb-4 text-slate-600 space-y-4 border-t border-slate-100 pt-4 leading-relaxed bg-slate-50/50">
+                            <p>
+                                TwoDegrees는 불필요한 감정 소모와 시간 낭비를 최소화하면서도 프라이버시를 철저히 보호합니다. 귀하의 프로필은 불특정 다수에게 절대 노출되지 않으며, 주선자가 직접 조건을 확인한 후 부합하는 상대에게만 <strong className="font-semibold text-slate-700">제한적으로 전달</strong>됩니다.
+                            </p>
+                            <div className="space-y-1">
+                                <p className="font-semibold text-slate-800">Step 1. 프로필 및 사진 제안</p>
+                                <p>주선자가 양측의 희망 조건과 기피 조건을 교차 검증하여 적합하다고 판단할 경우, 이름과 연락처를 제외한 <span className="font-medium text-slate-700">&apos;상세 텍스트 프로필&apos;</span>과 <span className="font-medium text-slate-700">&apos;사진&apos;</span>을 양측에 제안합니다.</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="font-semibold text-slate-800">Step 2. 상호 수락 및 연락처 교환</p>
+                                <p>양측 모두 상대방의 프로필과 사진을 확인한 후 만남에 동의한 경우에만, <span className="font-medium text-slate-700">&apos;실명&apos;</span>과 <span className="font-medium text-slate-700">&apos;연락처&apos;</span>가 교환됩니다. 어느 한쪽이라도 거절할 경우, 추가적인 개인정보는 일절 전달되지 않고 해당 매칭은 즉시 종료됩니다.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details className="group bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden text-sm">
+                        <summary className="flex items-center justify-between cursor-pointer p-4 font-semibold text-slate-800 list-none leading-tight [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors">
+                            <span>💡 매칭 연락은 언제 오나요?</span>
+                            <span className="transition duration-300 group-open:-rotate-180 text-slate-400">
+                                <svg fill="none" height="20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="20"><path d="M6 9l6 6 6-6"></path></svg>
+                            </span>
+                        </summary>
+                        <div className="px-4 pb-4 text-slate-600 space-y-4 border-t border-slate-100 pt-4 leading-relaxed bg-slate-50/50">
+                            <p>
+                                프로필 확인 후 적합한 상대방을 찾으면 주선자가 직접 연락을 드립니다. 매칭 제안 및 연락은 주로 <strong className="font-semibold text-slate-700">평일 오후 6시 ~ 10시</strong> 또는 <strong className="font-semibold text-slate-700">주말</strong>에 이루어질 예정입니다.
+                            </p>
+                        </div>
+                    </details>
+                </div>
+
+
             </div>
         </main>
     );

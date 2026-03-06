@@ -56,7 +56,7 @@ export default function RootLayout({
         </div>
         {/* 서비스 공통 최하단 버전 표시 */}
         <footer className="py-6 text-center text-xs text-slate-400 bg-slate-50">
-          TwoDegrees v0.0.1
+          TwoDegrees v0.0.2
         </footer>
       </body>
     </html>
