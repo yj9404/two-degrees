@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import Base, engine, get_db
-from models import Gender, User
+from models import Gender, User, Matching, MatchStatus
 from schemas import (
     AdminAuthRequest,
     AuthRequest,
@@ -27,6 +27,9 @@ from schemas import (
     UserReadAdmin,
     UserStatsResponse,
     UserUpdate,
+    MatchingCreate,
+    MatchingUpdate,
+    MatchingResponse,
 )
 
 # ---------------------------------------------------------------------------
@@ -409,3 +412,132 @@ def proxy_photo(
         "Content-Type": normalized_content_type,
     }
     return StreamingResponse(iter([resp.content]), media_type=normalized_content_type, headers=headers)
+
+
+# ---------------------------------------------------------------------------
+# Matching 응답 보조기
+# ---------------------------------------------------------------------------
+
+def _build_matching_response(matching: Matching, db: Session):
+    user_a = db.query(User).filter(User.id == matching.user_a_id).first()
+    user_b = db.query(User).filter(User.id == matching.user_b_id).first()
+    return {
+        "id": matching.id,
+        "user_a_id": matching.user_a_id,
+        "user_b_id": matching.user_b_id,
+        "user_a_status": matching.user_a_status,
+        "user_b_status": matching.user_b_status,
+        "created_at": matching.created_at,
+        "user_a_info": user_a,
+        "user_b_info": user_b,
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /api/matchings – 수동 매칭 생성
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/api/matchings",
+    response_model=MatchingResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="수동 매칭 생성",
+    tags=["matchings"],
+)
+def create_matching(payload: MatchingCreate, db: Session = Depends(get_db)):
+    """관리자가 두 유저를 선택하여 새로운 매칭을 생성합니다."""
+    user_a = db.query(User).filter(User.id == payload.user_a_id).first()
+    user_b = db.query(User).filter(User.id == payload.user_b_id).first()
+
+    if not user_a or not user_b:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="매칭하려는 유저를 찾을 수 없습니다.",
+        )
+
+    # 항상 문자열 기준으로 정렬해서 저장
+    sorted_ids = sorted([payload.user_a_id, payload.user_b_id])
+    
+    existing = db.query(Matching).filter(
+        Matching.user_a_id == sorted_ids[0],
+        Matching.user_b_id == sorted_ids[1]
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 매칭된 대상입니다.",
+        )
+
+    new_matching = Matching(
+        user_a_id=sorted_ids[0],
+        user_b_id=sorted_ids[1]
+    )
+    
+    db.add(new_matching)
+    db.commit()
+    db.refresh(new_matching)
+    
+    return _build_matching_response(new_matching, db)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/matchings – 전체 매칭 리스트 조회
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/matchings",
+    response_model=list[MatchingResponse],
+    summary="매칭 전체 조회",
+    tags=["matchings"],
+)
+def list_matchings(
+    status_filter: Optional[str] = Query(None, description="상태별 조회 (PENDING, ACCEPTED, REJECTED)"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Matching)
+    if status_filter:
+        try:
+            enum_status = MatchStatus(status_filter)
+            query = query.filter(
+                (Matching.user_a_status == enum_status) |
+                (Matching.user_b_status == enum_status)
+            )
+        except ValueError:
+            pass # Invalid status_filter ignores instead of failing
+            
+    matchings = query.order_by(Matching.created_at.desc()).all()
+    results = [_build_matching_response(m, db) for m in matchings]
+    return results
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/matchings/{matching_id}/status – 매칭 상태 업데이트
+# ---------------------------------------------------------------------------
+
+@app.put(
+    "/api/matchings/{matching_id}/status",
+    response_model=MatchingResponse,
+    summary="매칭 응답 업데이트",
+    tags=["matchings"],
+)
+def update_matching_status(
+    matching_id: str,
+    payload: MatchingUpdate,
+    db: Session = Depends(get_db)
+):
+    matching = db.query(Matching).filter(Matching.id == matching_id).first()
+    if not matching:
+        raise HTTPException(status_code=404, detail="매칭 정보를 찾을 수 없습니다.")
+
+    if payload.user_id == matching.user_a_id:
+        matching.user_a_status = payload.status
+    elif payload.user_id == matching.user_b_id:
+        matching.user_b_status = payload.status
+    else:
+        raise HTTPException(status_code=400, detail="이 매칭에 속하지 않은 유저입니다.")
+        
+    db.commit()
+    db.refresh(matching)
+    
+    return _build_matching_response(matching, db)

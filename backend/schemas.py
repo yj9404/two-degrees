@@ -15,7 +15,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from models import DrinkingStatus, Gender, SmokingStatus
+from datetime import datetime
+from models import DrinkingStatus, Gender, SmokingStatus, MatchStatus
 
 
 # ---------------------------------------------------------------------------
@@ -169,5 +170,37 @@ class UserReadAdmin(UserRead):
     """관리자 응답 – contact 포함, password_hash 제외"""
 
     contact: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------------------------
+# Matching 스키마
+# ---------------------------------------------------------------------------
+
+class MatchingCreate(BaseModel):
+    """POST /api/matchings 요청 바디"""
+    user_a_id: str
+    user_b_id: str
+
+
+class MatchingUpdate(BaseModel):
+    """PUT /api/matchings/{matching_id}/status 요청 바디"""
+    user_id: str
+    status: MatchStatus
+
+
+class MatchingResponse(BaseModel):
+    """GET /api/matchings 응답 바디 (단건)"""
+    id: str
+    user_a_id: str
+    user_b_id: str
+    user_a_status: MatchStatus
+    user_b_status: MatchStatus
+    created_at: datetime
+
+    # 관리자 확인용 간략한 유저 정보 포함
+    user_a_info: UserReadAdmin
+    user_b_info: UserReadAdmin
 
     model_config = ConfigDict(from_attributes=True)

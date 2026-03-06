@@ -4,6 +4,7 @@
 export type Gender = "MALE" | "FEMALE";
 export type SmokingStatus = "NON_SMOKER" | "SMOKER";
 export type DrinkingStatus = "NON_DRINKER" | "SOCIAL_DRINKER" | "DRINKER";
+export type MatchStatus = "PENDING" | "ACCEPTED" | "REJECTED";
 
 /** POST /api/users 요청 페이로드 */
 export interface UserCreatePayload {
@@ -97,4 +98,28 @@ export interface UserStatsResponse {
     female_active: number;
     male_ratio: number;
     female_ratio: number;
+}
+
+/** 매칭 생성 페이로드 */
+export interface MatchingCreatePayload {
+    user_a_id: string;
+    user_b_id: string;
+}
+
+/** 매칭 상태 업데이트 페이로드 */
+export interface MatchingUpdatePayload {
+    user_id: string;
+    status: MatchStatus;
+}
+
+/** 매칭 응답 객체 */
+export interface MatchingResponse {
+    id: string;
+    user_a_id: string;
+    user_b_id: string;
+    user_a_status: MatchStatus;
+    user_b_status: MatchStatus;
+    created_at: string;
+    user_a_info: UserReadAdmin;
+    user_b_info: UserReadAdmin;
 }

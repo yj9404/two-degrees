@@ -8,6 +8,10 @@ import type {
     UserReadAdmin,
     UserUpdatePayload,
     UserStatsResponse,
+    MatchStatus,
+    MatchingCreatePayload,
+    MatchingUpdatePayload,
+    MatchingResponse,
 } from "@/types/user";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -148,4 +152,33 @@ export async function uploadImageToS3(file: File): Promise<string> {
     }
 
     return public_url;
+}
+
+/** ──────────────────────────────────────────────────────────── 
+ * MATCHING API 
+ * ──────────────────────────────────────────────────────────── */
+
+/** POST /api/matchings – 수동 매칭 생성 (관리자) */
+export async function createMatching(payload: MatchingCreatePayload): Promise<MatchingResponse> {
+    return apiFetch("/api/matchings", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+/** GET /api/matchings – 전체 매칭 리스트 조회 (관리자) */
+export async function listMatchings(statusFilter?: MatchStatus): Promise<MatchingResponse[]> {
+    const qs = statusFilter ? `?status_filter=${statusFilter}` : "";
+    return apiFetch(`/api/matchings${qs}`, { method: "GET" });
+}
+
+/** PUT /api/matchings/{matching_id}/status – 매칭 상태 업데이트 (관리자) */
+export async function updateMatchingStatus(
+    matchingId: string,
+    payload: MatchingUpdatePayload
+): Promise<MatchingResponse> {
+    return apiFetch(`/api/matchings/${matchingId}/status`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+    });
 }

@@ -6,6 +6,8 @@ TwoDegrees 소개팅 풀 등록을 위한 SQLAlchemy ORM 모델
 import uuid
 from enum import Enum as PyEnum
 
+from datetime import datetime
+
 from sqlalchemy import (
     Boolean,
     Column,
@@ -14,6 +16,9 @@ from sqlalchemy import (
     String,
     Text,
     JSON,
+    DateTime,
+    ForeignKey,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.sqlite import TEXT as UUID_TEXT
 
@@ -38,6 +43,12 @@ class DrinkingStatus(PyEnum):
     NON_DRINKER = "NON_DRINKER"       # 비음주
     SOCIAL_DRINKER = "SOCIAL_DRINKER" # 가끔 (회식 등)
     DRINKER = "DRINKER"               # 음주
+
+
+class MatchStatus(PyEnum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
 
 
 # ---------------------------------------------------------------------------
@@ -89,3 +100,32 @@ class User(Base):
 
     def __repr__(self) -> str:
         return f"<User id={self.id!r} name={self.name!r} gender={self.gender}>"
+
+
+# ---------------------------------------------------------------------------
+# Matching 모델
+# ---------------------------------------------------------------------------
+
+class Matching(Base):
+    __tablename__ = "matchings"
+
+    id = Column(
+        UUID_TEXT,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        nullable=False,
+    )
+    user_a_id = Column(UUID_TEXT, ForeignKey("users.id"), nullable=False)
+    user_b_id = Column(UUID_TEXT, ForeignKey("users.id"), nullable=False)
+    
+    user_a_status = Column(Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING)
+    user_b_status = Column(Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING)
+    
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_a_id", "user_b_id", name="uq_matching_user_a_b"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Matching {self.user_a_id} - {self.user_b_id} (A:{self.user_a_status.value}, B:{self.user_b_status.value})>"
