@@ -21,6 +21,8 @@ import {
 // ─────────────────────────────────────────────
 const GENDER_LABEL: Record<string, string> = { MALE: "남", FEMALE: "여" };
 const SMOKING_LABEL: Record<string, string> = { SMOKER: "흡연", NON_SMOKER: "비흡연" };
+const DRINKING_LABEL: Record<string, string> = { NON_DRINKER: "비음주", SOCIAL_DRINKER: "가끔 (회식 등)", DRINKER: "음주" };
+const AGE_PREF_LABEL: Record<string, string> = { OLDER: "연상", YOUNGER: "연하", SAME: "동갑", ANY: "상관없음" };
 
 // ─────────────────────────────────────────────
 // 유저 상세 다이얼로그
@@ -82,10 +84,17 @@ function UserDetailDialog({
         ["학력", user.education || "-"],
         ["직장위치", user.workplace || "-"],
         ["MBTI", user.mbti || "-"],
-        ["흡연", user.smoking_status ? SMOKING_LABEL[user.smoking_status] : "-"],
         ["종교", user.religion || "-"],
+        ["흡연", user.smoking_status ? SMOKING_LABEL[user.smoking_status] : "-"],
+        ["음주", user.drinking_status ? DRINKING_LABEL[user.drinking_status] : "-"],
+        ["운동", user.exercise || "-"],
+        ["취미", user.hobbies || "-"],
+        ["선호 연령", user.age_preference?.length ? user.age_preference.map(p => AGE_PREF_LABEL[p] || p).join(", ") : "-"],
+        ["연상 나이차", user.age_gap_older ? `최대 ${user.age_gap_older}살` : "-"],
+        ["연하 나이차", user.age_gap_younger ? `최대 ${user.age_gap_younger}살` : "-"],
         ["원하는 조건", user.desired_conditions],
         ["기피 조건", user.deal_breakers],
+        ["자기소개", user.intro || "-"],
         [
             "인스타그램",
             user.instagram_id ? (
