@@ -47,6 +47,10 @@ function UserDetailDialog({
                 const name = `${user.name}_${i + 1}`;
                 const proxyUrl = `${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`;
                 const res = await fetch(proxyUrl);
+                if (!res.ok) {
+                    alert(`사진 ${i + 1}번 다운로드 실패 (서버 오류 ${res.status})\n백엔드 서버를 재시작해 주세요.`);
+                    break;
+                }
                 const blob = await res.blob();
                 const blobUrl = URL.createObjectURL(blob);
                 const a = document.createElement("a");
@@ -146,7 +150,7 @@ function UserDetailDialog({
                     </div>
                 )}
 
-                <DialogFooter className="flex-col gap-2">
+                <div className="flex flex-col gap-2 pt-2">
                     {user.photo_urls && user.photo_urls.length > 0 && (
                         <Button
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
@@ -161,7 +165,7 @@ function UserDetailDialog({
                     <Button variant="outline" className="w-full" onClick={onClose}>
                         닫기
                     </Button>
-                </DialogFooter>
+                </div>
             </DialogContent>
         </Dialog>
     );

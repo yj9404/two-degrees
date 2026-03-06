@@ -360,12 +360,19 @@ def proxy_photo(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
     content_type = resp.headers.get("content-type", "image/jpeg")
-    ext = content_type.split("/")[-1].split(";")[0]  # jpeg, png, webp 등
-    ext = ext if ext in {"jpeg", "png", "webp", "gif"} else "jpg"
+    raw_ext = content_type.split("/")[-1].split(";")[0].lower()
+
+    # jfif, pjpeg 등 JPEG 계열을 모두 jpg로 통일
+    MIME_TO_EXT = {
+        "jpeg": "jpg", "jfif": "jpg", "pjpeg": "jpg", "jpg": "jpg",
+        "png": "png", "webp": "webp", "gif": "gif",
+    }
+    ext = MIME_TO_EXT.get(raw_ext, "jpg")
+    normalized_content_type = f"image/{ext if ext != 'jpg' else 'jpeg'}"
 
     safe_name = urllib.parse.quote(f"{name}.{ext}")
     headers = {
         "Content-Disposition": f'attachment; filename*=UTF-8\'\'{safe_name}',
-        "Content-Type": content_type,
+        "Content-Type": normalized_content_type,
     }
-    return StreamingResponse(iter([resp.content]), media_type=content_type, headers=headers)
+    return StreamingResponse(iter([resp.content]), media_type=normalized_content_type, headers=headers)
