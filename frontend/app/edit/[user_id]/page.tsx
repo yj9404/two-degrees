@@ -213,7 +213,7 @@ export default function EditProfilePage() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* 통계 배너 */}
+                    {/* 통계 배너 (임시 주석 처리)
                     {stats && (
                         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                             <span className="text-blue-600 text-lg">📊</span>
@@ -223,6 +223,7 @@ export default function EditProfilePage() {
                             </div>
                         </div>
                     )}
+                    */}
 
                     {/* ── 매칭 풀 노출 토글 ── */}
                     <Card className="shadow-sm border-2 border-blue-100 bg-blue-50/50">
