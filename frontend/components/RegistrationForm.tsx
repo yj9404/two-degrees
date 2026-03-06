@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { registerUser } from "@/lib/api";
-import type { UserCreatePayload, Gender, SmokingStatus, DrinkingStatus } from "@/types/user";
+import { useState, useEffect } from "react";
+import { registerUser, getUserStats } from "@/lib/api";
+import type { UserCreatePayload, Gender, SmokingStatus, DrinkingStatus, UserStatsResponse } from "@/types/user";
 
 import {
     Card,
@@ -120,6 +120,11 @@ export default function RegistrationForm() {
         "idle" | "loading" | "success" | "error"
     >("idle");
     const [errorMsg, setErrorMsg] = useState("");
+    const [stats, setStats] = useState<UserStatsResponse | null>(null);
+
+    useEffect(() => {
+        getUserStats().then(setStats).catch(() => { });
+    }, []);
 
     // 텍스트·숫자 입력 공통 핸들러
     const handleChange = (
@@ -225,15 +230,29 @@ export default function RegistrationForm() {
         );
     }
 
-    // ── 등록 폼 ──────────────────────────────────────────────────
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            {/* 무료 안내 배너 */}
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-                <span className="text-green-600 text-lg">🎁</span>
-                <p className="text-green-700 text-sm font-semibold">
-                    TwoDegrees의 모든 서비스는 <span className="underline">무료</span>입니다.
-                </p>
+            {/* 상단 배너 영역 */}
+            <div className="space-y-2">
+                {/* 통계 배너 */}
+                {stats && stats.total_active > 0 && (
+                    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                        <span className="text-blue-600 text-lg">📊</span>
+                        <div className="text-blue-900 text-sm">
+                            <span className="font-semibold block mb-0.5">현재 활성화 프로필 성비</span>
+                            남 <span className="font-bold">{stats.male_ratio}%</span> / 여 <span className="font-bold">{stats.female_ratio}%</span>
+                            <span className="text-blue-500 text-xs ml-2">(총 {stats.total_active}명)</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* 무료 안내 배너 */}
+                <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                    <span className="text-green-600 text-lg">🎁</span>
+                    <p className="text-green-700 text-sm font-semibold">
+                        TwoDegrees의 모든 서비스는 <span className="underline">무료</span>입니다.
+                    </p>
+                </div>
             </div>
 
             {/* ① 기본 정보 */}
@@ -571,7 +590,7 @@ export default function RegistrationForm() {
                 </Field>
 
                 {/* 프로필 사진 */}
-                <Field label="프로필 사진" hint="철저한 신원 확인을 위해 실제 사진을 등록해 주세요.">
+                <Field label="프로필 사진">
                     <ImageUploader
                         value={form.photo_urls ?? []}
                         onChange={(urls) => setForm((prev) => ({ ...prev, photo_urls: urls }))}

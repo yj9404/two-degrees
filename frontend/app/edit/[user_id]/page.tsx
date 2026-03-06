@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getUser, updateUser } from "@/lib/api";
-import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus } from "@/types/user";
+import { getUser, updateUser, getUserStats } from "@/lib/api";
+import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus, UserStatsResponse } from "@/types/user";
 
 import {
     Card,
@@ -98,10 +98,13 @@ export default function EditProfilePage() {
         "idle" | "loading" | "success" | "error"
     >("idle");
     const [errorMsg, setErrorMsg] = useState("");
+    const [stats, setStats] = useState<UserStatsResponse | null>(null);
 
     // ── 기존 데이터 불러오기 (pre-fill) ──────────────────────────
     useEffect(() => {
         if (!user_id) return;
+        getUserStats().then(setStats).catch(() => { });
+
         getUser(user_id)
             .then((user) => {
                 setForm({
@@ -263,6 +266,18 @@ export default function EditProfilePage() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* 통계 배너 */}
+                    {stats && stats.total_active > 0 && (
+                        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                            <span className="text-blue-600 text-lg">📊</span>
+                            <div className="text-blue-900 text-sm">
+                                <span className="font-semibold block mb-0.5">현재 활성화 프로필 성비</span>
+                                남 <span className="font-bold">{stats.male_ratio}%</span> / 여 <span className="font-bold">{stats.female_ratio}%</span>
+                                <span className="text-blue-500 text-xs ml-2">(총 {stats.total_active}명)</span>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ── 매칭 풀 노출 토글 ── */}
                     <Card className="shadow-sm border-2 border-blue-100 bg-blue-50/50">
                         <CardContent className="pt-6 pb-6">
@@ -600,7 +615,6 @@ export default function EditProfilePage() {
                         {/* 프로필 사진 */}
                         <Field
                             label="프로필 사진"
-                            hint="철저한 신원 확인을 위해 실제 사진을 등록해 주세요."
                         >
                             <ImageUploader
                                 value={form.photo_urls ?? []}

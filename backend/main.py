@@ -25,6 +25,7 @@ from schemas import (
     PresignedUrlResponse,
     UserCreate,
     UserReadAdmin,
+    UserStatsResponse,
     UserUpdate,
 )
 
@@ -131,6 +132,38 @@ def authenticate_user(payload: AuthRequest, db: Session = Depends(get_db)):
         )
 
     return AuthResponse(user_id=user.id, name=user.name)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/users/stats – 활성화된 유저 남/녀 비율 통계
+# ⚠️ 반드시 /api/users/{user_id} 보다 위에 선언해야 합니다.
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/users/stats",
+    response_model=UserStatsResponse,
+    summary="활성화된 유저 남/녀 통계",
+    tags=["users"],
+)
+def get_user_stats(db: Session = Depends(get_db)):
+    """
+    현재 매칭풀에 활성화(is_active=True)된 유저들의 남녀 활동 비율을 반환합니다.
+    """
+    active_users = db.query(User).filter(User.is_active == True).all()
+    male_count = sum(1 for u in active_users if u.gender == Gender.MALE)
+    female_count = sum(1 for u in active_users if u.gender == Gender.FEMALE)
+    total = male_count + female_count
+
+    male_ratio = round((male_count / total * 100)) if total > 0 else 0
+    female_ratio = round((female_count / total * 100)) if total > 0 else 0
+
+    return {
+        "total_active": total,
+        "male_active": male_count,
+        "female_active": female_count,
+        "male_ratio": float(male_ratio),
+        "female_ratio": float(female_ratio),
+    }
 
 
 # ---------------------------------------------------------------------------

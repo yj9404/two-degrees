@@ -142,6 +142,16 @@ class PresignedUrlResponse(BaseModel):
     public_url: str
 
 
+class UserStatsResponse(BaseModel):
+    """GET /api/users/stats 응답"""
+
+    total_active: int
+    male_active: int
+    female_active: int
+    male_ratio: float
+    female_ratio: float
+
+
 # ---------------------------------------------------------------------------
 # 응답 스키마 – password_hash는 절대 노출하지 않음
 # ---------------------------------------------------------------------------

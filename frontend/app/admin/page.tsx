@@ -300,9 +300,10 @@ export default function AdminPage() {
     // ─────────────────────────────────────────
     // 관리자 대시보드
     // ─────────────────────────────────────────
-    const activeCount = users.filter((u) => u.is_active).length;
-    const maleCount = users.filter((u) => u.gender === "MALE").length;
-    const femaleCount = users.filter((u) => u.gender === "FEMALE").length;
+    const activeUsers = users.filter((u) => u.is_active);
+    const activeCount = activeUsers.length;
+    const maleCount = activeUsers.filter((u) => u.gender === "MALE").length;
+    const femaleCount = activeUsers.filter((u) => u.gender === "FEMALE").length;
 
     return (
         <main className="min-h-screen bg-slate-50 py-8 px-4">
@@ -330,7 +331,7 @@ export default function AdminPage() {
                     {[
                         { label: "전체", value: users.length, color: "text-slate-900" },
                         { label: "매칭 활성", value: activeCount, color: "text-blue-600" },
-                        { label: "남 / 여", value: `${maleCount} / ${femaleCount}`, color: "text-slate-700" },
+                        { label: "활성 (남 / 여)", value: `${maleCount} / ${femaleCount}`, color: "text-slate-700" },
                     ].map(({ label, value, color }) => (
                         <Card key={label} className="shadow-sm">
                             <CardContent className="pt-4 pb-4 text-center">

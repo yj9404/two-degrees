@@ -7,6 +7,7 @@ import type {
     UserCreatePayload,
     UserReadAdmin,
     UserUpdatePayload,
+    UserStatsResponse,
 } from "@/types/user";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -47,6 +48,13 @@ export async function registerUser(
     return apiFetch("/api/users", {
         method: "POST",
         body: JSON.stringify(payload),
+    });
+}
+
+/** GET /api/users/stats – 홛성화 프로필 남/녀 비율 통계 */
+export async function getUserStats(): Promise<UserStatsResponse> {
+    return apiFetch("/api/users/stats", {
+        method: "GET",
     });
 }
 

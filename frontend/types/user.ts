@@ -89,3 +89,12 @@ export interface PresignedUrlResponse {
     object_key: string;
     public_url: string;
 }
+
+/** GET /api/users/stats 응답 */
+export interface UserStatsResponse {
+    total_active: number;
+    male_active: number;
+    female_active: number;
+    male_ratio: number;
+    female_ratio: number;
+}
