@@ -183,7 +183,7 @@ export default function RegistrationForm() {
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* 상단 배너 영역 */}
                 <div className="space-y-2">
-                    {/* 통계 배너 (임시 주석 처리)
+                    {/* 통계 배너 */}
                     {stats && (
                         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                             <span className="text-blue-600 text-lg">📊</span>
@@ -193,7 +193,6 @@ export default function RegistrationForm() {
                             </div>
                         </div>
                     )}
-                    */}
 
                     {/* 무료 안내 배너 */}
                     <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
