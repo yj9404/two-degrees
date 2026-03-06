@@ -89,7 +89,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     ).first()
     if existing:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="이미 등록된 연락처입니다.",
         )
 
@@ -535,7 +535,7 @@ def update_matching_status(
     elif payload.user_id == matching.user_b_id:
         matching.user_b_status = payload.status
     else:
-        raise HTTPException(status_code=400, detail="이 매칭에 속하지 않은 유저입니다.")
+        raise HTTPException(status_code=404, detail="이 매칭에 속하지 않은 유저입니다.")
         
     db.commit()
     db.refresh(matching)
