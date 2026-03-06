@@ -278,11 +278,24 @@ export default function AdminPage() {
     };
 
     // ── 매칭 관련 함수 ───────────────────────
-    const handleSelectUser = (id: string) => {
-        setSelectedUserIds((prev) =>
-            prev.includes(id) ? prev.filter(u => u !== id)
-                : prev.length < 2 ? [...prev, id] : prev
-        );
+    const handleSelectUser = (user: UserReadAdmin) => {
+        if (!user.is_active) {
+            alert("비활성 유저는 매칭할 수 없습니다.");
+            return;
+        }
+
+        setSelectedUserIds((prev) => {
+            if (prev.includes(user.id)) return prev.filter((id) => id !== user.id);
+            if (prev.length >= 2) return prev;
+
+            const selectedUsers = users.filter((u) => prev.includes(u.id));
+            if (selectedUsers.some((u) => u.gender === user.gender)) {
+                alert("남성 1명과 여성 1명만 선택할 수 있습니다.");
+                return prev;
+            }
+
+            return [...prev, user.id];
+        });
     };
 
     const handleCreateMatch = async () => {
@@ -470,97 +483,107 @@ export default function AdminPage() {
                             <p className="text-center text-slate-400 py-16">가입자가 없습니다.</p>
                         ) : (
                             <div className="space-y-3">
-                                {users.map((user) => (
-                                    <Card
-                                        key={user.id}
-                                        className={`shadow-sm transition-opacity cursor-pointer hover:border-blue-300 hover:bg-slate-50 ${user.is_active ? "" : "opacity-50"}`}
-                                        onClick={() => setSelectedUser(user)}
-                                    >
-                                        <CardContent className="pt-4 pb-4">
-                                            <div className="flex items-center gap-4">
-                                                {/* 체크박스 (매칭용) */}
-                                                <div className="shrink-0 flex items-center justify-center p-1" onClick={(e) => e.stopPropagation()}>
-                                                    <input
-                                                        type="checkbox"
-                                                        className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer transition-all"
-                                                        checked={selectedUserIds.includes(user.id)}
-                                                        onChange={() => handleSelectUser(user.id)}
-                                                        disabled={!selectedUserIds.includes(user.id) && selectedUserIds.length >= 2}
-                                                    />
-                                                </div>
+                                {users.map((user) => {
+                                    const cardBgClass = user.gender === "MALE"
+                                        ? "bg-blue-50/20 hover:bg-blue-50/60 border-blue-100"
+                                        : "bg-pink-50/20 hover:bg-pink-50/60 border-pink-100";
 
-                                                {/* 아바타 */}
-                                                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden">
-                                                    {user.gender === "MALE" ? "👨" : "👩"}
-                                                </div>
+                                    const cardBorderClass = user.gender === "MALE"
+                                        ? "hover:border-blue-400"
+                                        : "hover:border-pink-400";
 
-                                                {/* 기본 정보 */}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="text-slate-900 font-semibold text-sm">
-                                                            {user.name}
-                                                        </span>
-                                                        <span className="text-slate-400 text-xs">
-                                                            {GENDER_LABEL[user.gender]} · {user.birth_year}년생
-                                                        </span>
-                                                        <span className="text-slate-400 text-xs truncate">
-                                                            {user.contact}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-slate-500 text-xs mt-0.5 truncate">
-                                                        {user.job}
-                                                        {user.active_area ? ` · ${user.active_area}` : ""}
-                                                        {user.referrer_name ? ` · 추천: ${user.referrer_name}` : ""}
-                                                    </p>
-                                                </div>
-
-                                                {/* 액션 */}
-                                                <div className="flex items-center gap-3 shrink-0">
-                                                    {/* 활성 토글 */}
-                                                    <div
-                                                        className="flex flex-col items-center gap-1"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                        <Switch
-                                                            checked={user.is_active}
-                                                            onCheckedChange={() => handleToggleActive(user)}
-                                                            className="data-[state=checked]:bg-blue-600"
+                                    return (
+                                        <Card
+                                            key={user.id}
+                                            className={`shadow-sm transition-opacity cursor-pointer ${cardBgClass} ${cardBorderClass} ${user.is_active ? "" : "opacity-50"}`}
+                                            onClick={() => setSelectedUser(user)}
+                                        >
+                                            <CardContent className="pt-4 pb-4">
+                                                <div className="flex items-center gap-4">
+                                                    {/* 체크박스 (매칭용) */}
+                                                    <div className="shrink-0 flex items-center justify-center p-1" onClick={(e) => e.stopPropagation()}>
+                                                        <input
+                                                            type="checkbox"
+                                                            className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            checked={selectedUserIds.includes(user.id)}
+                                                            onChange={() => handleSelectUser(user)}
+                                                            disabled={!user.is_active || (!selectedUserIds.includes(user.id) && selectedUserIds.length >= 2)}
                                                         />
-                                                        <span className="text-[10px] text-slate-400">
-                                                            {user.is_active ? "활성" : "비활성"}
-                                                        </span>
                                                     </div>
 
-                                                    {/* 상세보기 */}
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setSelectedUser(user);
-                                                        }}
-                                                        className="text-xs"
-                                                    >
-                                                        상세
-                                                    </Button>
+                                                    {/* 아바타 */}
+                                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden">
+                                                        {user.gender === "MALE" ? "👨" : "👩"}
+                                                    </div>
 
-                                                    {/* 삭제 */}
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setToDeleteId(user.id);
-                                                        }}
-                                                        className="text-xs text-red-500 border-red-200 hover:bg-red-50"
-                                                    >
-                                                        삭제
-                                                    </Button>
+                                                    {/* 기본 정보 */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-slate-900 font-semibold text-sm">
+                                                                {user.name}
+                                                            </span>
+                                                            <span className="text-slate-400 text-xs">
+                                                                {GENDER_LABEL[user.gender]} · {user.birth_year}년생
+                                                            </span>
+                                                            <span className="text-slate-400 text-xs truncate">
+                                                                {user.contact}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-slate-500 text-xs mt-0.5 truncate">
+                                                            {user.job}
+                                                            {user.active_area ? ` · ${user.active_area}` : ""}
+                                                            {user.referrer_name ? ` · 추천: ${user.referrer_name}` : ""}
+                                                        </p>
+                                                    </div>
+
+                                                    {/* 액션 */}
+                                                    <div className="flex items-center gap-3 shrink-0">
+                                                        {/* 활성 토글 */}
+                                                        <div
+                                                            className="flex flex-col items-center gap-1"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <Switch
+                                                                checked={user.is_active}
+                                                                onCheckedChange={() => handleToggleActive(user)}
+                                                                className="data-[state=checked]:bg-blue-600"
+                                                            />
+                                                            <span className="text-[10px] text-slate-400">
+                                                                {user.is_active ? "활성" : "비활성"}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* 상세보기 */}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedUser(user);
+                                                            }}
+                                                            className="text-xs"
+                                                        >
+                                                            상세
+                                                        </Button>
+
+                                                        {/* 삭제 */}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setToDeleteId(user.id);
+                                                            }}
+                                                            className="text-xs text-red-500 border-red-200 hover:bg-red-50"
+                                                        >
+                                                            삭제
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -622,7 +645,7 @@ export default function AdminPage() {
                                                     </div>
                                                     <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-auto">
                                                         <span className={`text-xs font-bold ${match.user_a_status === "ACCEPTED" ? "text-green-600" :
-                                                                match.user_a_status === "REJECTED" ? "text-red-600" : "text-slate-500"
+                                                            match.user_a_status === "REJECTED" ? "text-red-600" : "text-slate-500"
                                                             }`}>
                                                             {match.user_a_status}
                                                         </span>
@@ -653,7 +676,7 @@ export default function AdminPage() {
                                                     </div>
                                                     <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-auto">
                                                         <span className={`text-xs font-bold ${match.user_b_status === "ACCEPTED" ? "text-green-600" :
-                                                                match.user_b_status === "REJECTED" ? "text-red-600" : "text-slate-500"
+                                                            match.user_b_status === "REJECTED" ? "text-red-600" : "text-slate-500"
                                                             }`}>
                                                             {match.user_b_status}
                                                         </span>
