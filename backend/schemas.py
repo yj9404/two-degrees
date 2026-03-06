@@ -15,7 +15,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from models import Gender, SmokingStatus
+from models import DrinkingStatus, Gender, SmokingStatus
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +40,14 @@ class _UserBase(BaseModel):
     workplace: Optional[str] = Field(None, max_length=100, examples=["판교"])
     mbti: Optional[str] = Field(None, max_length=4, examples=["ENFP"])
     smoking_status: Optional[SmokingStatus] = None
+    drinking_status: Optional[DrinkingStatus] = None
     religion: Optional[str] = Field(None, max_length=50, examples=["무교"])
+    exercise: Optional[str] = Field(None, max_length=100, examples=["주 3회 헬스"])
+    hobbies: Optional[str] = Field(None, max_length=200, examples=["등산, 싸이클링"])
+    intro: Optional[str] = Field(None, max_length=500, examples=["안녕하세요, 저는..."])
+    age_preference: Optional[List[str]] = Field(None, examples=[["OLDER", "SAME"]])  # 다중 선택
+    age_gap_older: Optional[int] = Field(None, ge=1, le=20, examples=[5])   # 연상 최대 나이차
+    age_gap_younger: Optional[int] = Field(None, ge=1, le=20, examples=[3]) # 연하 최대 나이차
 
     @field_validator("photo_urls", mode="before")
     @classmethod
@@ -92,7 +99,14 @@ class UserUpdate(BaseModel):
     workplace: Optional[str] = Field(None, max_length=100)
     mbti: Optional[str] = Field(None, max_length=4)
     smoking_status: Optional[SmokingStatus] = None
+    drinking_status: Optional[DrinkingStatus] = None
     religion: Optional[str] = Field(None, max_length=50)
+    exercise: Optional[str] = Field(None, max_length=100)
+    hobbies: Optional[str] = Field(None, max_length=200)
+    intro: Optional[str] = None
+    age_preference: Optional[List[str]] = None
+    age_gap_older: Optional[int] = Field(None, ge=1, le=20)
+    age_gap_younger: Optional[int] = Field(None, ge=1, le=20)
     is_active: Optional[bool] = None
 
 

@@ -34,6 +34,12 @@ class SmokingStatus(PyEnum):
     SMOKER = "SMOKER"
 
 
+class DrinkingStatus(PyEnum):
+    NON_DRINKER = "NON_DRINKER"       # 비음주
+    SOCIAL_DRINKER = "SOCIAL_DRINKER" # 가끔 (회식 등)
+    DRINKER = "DRINKER"               # 음주
+
+
 # ---------------------------------------------------------------------------
 # User 모델
 # ---------------------------------------------------------------------------
@@ -72,7 +78,14 @@ class User(Base):
     workplace = Column(String(100), nullable=True)        # 직장 위치
     mbti = Column(String(4), nullable=True)               # MBTI
     smoking_status = Column(Enum(SmokingStatus), nullable=True)
+    drinking_status = Column(Enum(DrinkingStatus), nullable=True)
     religion = Column(String(50), nullable=True)
+    exercise = Column(String(100), nullable=True)         # 운동 (예: 주 3회 헬스)
+    hobbies = Column(String(200), nullable=True)          # 취미
+    intro = Column(Text, nullable=True)                   # 간단한 자기소개
+    age_preference = Column(JSON, nullable=True)         # ["OLDER", "SAME"] 등 다중 선택
+    age_gap_older = Column(Integer, nullable=True)        # 연상 허용 최대 나이차 (세)
+    age_gap_younger = Column(Integer, nullable=True)      # 연하 허용 최대 나이차 (세)
 
     def __repr__(self) -> str:
         return f"<User id={self.id!r} name={self.name!r} gender={self.gender}>"

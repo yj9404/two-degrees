@@ -3,6 +3,7 @@
 
 export type Gender = "MALE" | "FEMALE";
 export type SmokingStatus = "NON_SMOKER" | "SMOKER";
+export type DrinkingStatus = "NON_DRINKER" | "SOCIAL_DRINKER" | "DRINKER";
 
 /** POST /api/users 요청 페이로드 */
 export interface UserCreatePayload {
@@ -25,7 +26,14 @@ export interface UserCreatePayload {
     workplace?: string;
     mbti?: string;
     smoking_status?: SmokingStatus;
+    drinking_status?: DrinkingStatus;
     religion?: string;
+    exercise?: string;
+    hobbies?: string;
+    intro?: string;
+    age_preference?: ("OLDER" | "YOUNGER" | "SAME" | "ANY")[]; // 다중 선택
+    age_gap_older?: number;   // 연상 허용 최대 나이차
+    age_gap_younger?: number; // 연하 허용 최대 나이차
 }
 
 /** PUT /api/users/{user_id} 요청 페이로드 – 모든 필드 Optional */
@@ -45,7 +53,14 @@ export interface UserUpdatePayload {
     workplace?: string;
     mbti?: string;
     smoking_status?: SmokingStatus;
+    drinking_status?: DrinkingStatus;
     religion?: string;
+    exercise?: string;
+    hobbies?: string;
+    intro?: string;
+    age_preference?: ("OLDER" | "YOUNGER" | "SAME" | "ANY")[];
+    age_gap_older?: number;
+    age_gap_younger?: number;
     is_active?: boolean;
 }
 

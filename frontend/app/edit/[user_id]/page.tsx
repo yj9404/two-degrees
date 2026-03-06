@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getUser, updateUser } from "@/lib/api";
-import type { UserUpdatePayload, Gender, SmokingStatus } from "@/types/user";
+import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus } from "@/types/user";
 
 import {
     Card,
@@ -120,7 +120,14 @@ export default function EditProfilePage() {
                     workplace: user.workplace ?? "",
                     mbti: user.mbti ?? "",
                     smoking_status: user.smoking_status ?? undefined,
+                    drinking_status: user.drinking_status ?? undefined,
                     religion: user.religion ?? "",
+                    exercise: user.exercise ?? "",
+                    hobbies: user.hobbies ?? "",
+                    intro: user.intro ?? "",
+                    age_preference: user.age_preference ?? [],
+                    age_gap_older: user.age_gap_older ?? undefined,
+                    age_gap_younger: user.age_gap_younger ?? undefined,
                 });
                 setIsActive(user.is_active);
                 setLoadStatus("ready");
@@ -143,6 +150,38 @@ export default function EditProfilePage() {
     const handleSelect = (name: keyof UserUpdatePayload, value: string) => {
         setForm((prev) => ({ ...prev, [name]: value }));
     };
+
+    // 연령 선호 토글 (다중 선택)
+    const handleAgePreference = (value: "OLDER" | "YOUNGER" | "SAME" | "ANY") => {
+        setForm((prev) => {
+            const current = (prev.age_preference ?? []) as ("OLDER" | "YOUNGER" | "SAME" | "ANY")[];
+            let next: typeof current;
+            if (value === "ANY") {
+                next = current.includes("ANY") ? [] : ["ANY"];
+            } else {
+                const withoutAny = current.filter((v) => v !== "ANY");
+                next = withoutAny.includes(value)
+                    ? withoutAny.filter((v) => v !== value)
+                    : [...withoutAny, value];
+            }
+            return {
+                ...prev,
+                age_preference: next,
+                age_gap_older: next.includes("OLDER") ? prev.age_gap_older : undefined,
+                age_gap_younger: next.includes("YOUNGER") ? prev.age_gap_younger : undefined,
+            };
+        });
+    };
+
+    const showOlderGap = ((form.age_preference ?? []) as string[]).includes("OLDER");
+    const showYoungerGap = ((form.age_preference ?? []) as string[]).includes("YOUNGER");
+
+    const AGE_PREF_OPTIONS: { value: "OLDER" | "YOUNGER" | "SAME" | "ANY"; label: string }[] = [
+        { value: "OLDER", label: "연상" },
+        { value: "YOUNGER", label: "연하" },
+        { value: "SAME", label: "동갑" },
+        { value: "ANY", label: "상관없음" },
+    ];
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -328,7 +367,7 @@ export default function EditProfilePage() {
                     {/* ② 상대방 조건 */}
                     <SectionCard
                         title="💌 상대방 조건"
-                        description="원하는 상대방의 조건을 자유롭게 작성해 주세요."
+                        description="원하는 상대방의 조건을 자유롭게 작성해 주세요. 구체적일수록 매칭 확률이 높아집니다."
                     >
                         <Field label="원하는 상대방 조건" required>
                             <Textarea
@@ -357,6 +396,60 @@ export default function EditProfilePage() {
                                 className="resize-none"
                             />
                         </Field>
+
+                        {/* 선호 연령대 */}
+                        <Field label="선호 연령대" required hint="복수 선택 가능. '상관없음' 선택 시 다른 항목 자동 해제">
+                            <div className="flex flex-wrap gap-2">
+                                {AGE_PREF_OPTIONS.map((opt) => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => handleAgePreference(opt.value)}
+                                        className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm font-medium transition-colors
+                                            ${((form.age_preference ?? []) as string[]).includes(opt.value)
+                                                ? "bg-blue-600 text-white border-blue-600"
+                                                : "bg-white text-slate-700 border-slate-200 hover:border-blue-400"
+                                            }`}
+                                    >
+                                        {((form.age_preference ?? []) as string[]).includes(opt.value) ? "✓ " : ""}{opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                            {showOlderGap && (
+                                <div className="mt-3 flex items-center gap-2">
+                                    <span className="text-slate-600 text-sm shrink-0 w-20">연상 최대</span>
+                                    <Input
+                                        id="edit-age_gap_older"
+                                        name="age_gap_older"
+                                        type="number"
+                                        min={1}
+                                        max={20}
+                                        placeholder="예: 5"
+                                        value={form.age_gap_older ?? ""}
+                                        onChange={handleChange}
+                                        className="w-20"
+                                    />
+                                    <span className="text-slate-600 text-sm shrink-0">살</span>
+                                </div>
+                            )}
+                            {showYoungerGap && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <span className="text-slate-600 text-sm shrink-0 w-20">연하 최대</span>
+                                    <Input
+                                        id="edit-age_gap_younger"
+                                        name="age_gap_younger"
+                                        type="number"
+                                        min={1}
+                                        max={20}
+                                        placeholder="예: 3"
+                                        value={form.age_gap_younger ?? ""}
+                                        onChange={handleChange}
+                                        className="w-20"
+                                    />
+                                    <span className="text-slate-600 text-sm shrink-0">살</span>
+                                </div>
+                            )}
+                        </Field>
                     </SectionCard>
 
                     {/* ③ 선택 정보 */}
@@ -364,18 +457,80 @@ export default function EditProfilePage() {
                         title="📋 선택 정보"
                         description="작성할수록 더 정확한 매칭이 가능합니다. (모두 선택 사항)"
                     >
-                        <Field label="키 (cm)">
-                            <Input
-                                id="edit-height"
-                                name="height"
-                                type="number"
-                                min={140}
-                                max={220}
-                                value={form.height ?? ""}
-                                onChange={handleChange}
-                            />
-                        </Field>
+                        {/* 2열 그리드: MBTI · 종교 · 흡연 · 음주 · 키 · 운동 */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="MBTI">
+                                <Input
+                                    id="edit-mbti"
+                                    name="mbti"
+                                    placeholder="예: ENFP"
+                                    value={form.mbti ?? ""}
+                                    onChange={handleChange}
+                                    maxLength={4}
+                                />
+                            </Field>
 
+                            <Field label="종교">
+                                <Input
+                                    id="edit-religion"
+                                    name="religion"
+                                    placeholder="예: 무교"
+                                    value={form.religion ?? ""}
+                                    onChange={handleChange}
+                                />
+                            </Field>
+
+                            <Field label="흡연 여부">
+                                <Select
+                                    value={form.smoking_status ?? ""}
+                                    onValueChange={(v) => handleSelect("smoking_status", v as SmokingStatus)}
+                                >
+                                    <SelectTrigger id="edit-smoking_status"><SelectValue placeholder="선택" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="NON_SMOKER">비흡연</SelectItem>
+                                        <SelectItem value="SMOKER">흡연</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </Field>
+
+                            <Field label="음주 여부">
+                                <Select
+                                    value={form.drinking_status ?? ""}
+                                    onValueChange={(v) => handleSelect("drinking_status", v as DrinkingStatus)}
+                                >
+                                    <SelectTrigger id="edit-drinking_status"><SelectValue placeholder="선택" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="NON_DRINKER">비음주</SelectItem>
+                                        <SelectItem value="SOCIAL_DRINKER">가끔 (회식 등)</SelectItem>
+                                        <SelectItem value="DRINKER">음주</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </Field>
+
+                            <Field label="키 (cm)">
+                                <Input
+                                    id="edit-height"
+                                    name="height"
+                                    type="number"
+                                    min={140}
+                                    max={220}
+                                    value={form.height ?? ""}
+                                    onChange={handleChange}
+                                />
+                            </Field>
+
+                            <Field label="운동">
+                                <Input
+                                    id="edit-exercise"
+                                    name="exercise"
+                                    placeholder="예: 주 3회 헬스"
+                                    value={form.exercise ?? ""}
+                                    onChange={handleChange}
+                                />
+                            </Field>
+                        </div>
+
+                        {/* 전체 너비 필드 */}
                         <Field label="주 활동 지역">
                             <Input
                                 id="edit-active_area"
@@ -406,41 +561,25 @@ export default function EditProfilePage() {
                             />
                         </Field>
 
-                        <Field label="MBTI">
+                        <Field label="취미">
                             <Input
-                                id="edit-mbti"
-                                name="mbti"
-                                placeholder="예: ENFP"
-                                value={form.mbti ?? ""}
+                                id="edit-hobbies"
+                                name="hobbies"
+                                placeholder="예: 등산, 연주, 요리"
+                                value={form.hobbies ?? ""}
                                 onChange={handleChange}
-                                maxLength={4}
                             />
                         </Field>
 
-                        <Field label="흡연 여부">
-                            <Select
-                                value={form.smoking_status ?? ""}
-                                onValueChange={(v) =>
-                                    handleSelect("smoking_status", v as SmokingStatus)
-                                }
-                            >
-                                <SelectTrigger id="edit-smoking_status">
-                                    <SelectValue placeholder="선택해 주세요" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="NON_SMOKER">비흡연</SelectItem>
-                                    <SelectItem value="SMOKER">흡연</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </Field>
-
-                        <Field label="종교">
-                            <Input
-                                id="edit-religion"
-                                name="religion"
-                                placeholder="예: 무교, 기독교, 불교"
-                                value={form.religion ?? ""}
+                        <Field label="간단한 자기소개">
+                            <Textarea
+                                id="edit-intro"
+                                name="intro"
+                                placeholder="차별성 있게 자신을 간단히 소개해 보세요."
+                                rows={3}
+                                value={form.intro ?? ""}
                                 onChange={handleChange}
+                                className="resize-none"
                             />
                         </Field>
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { registerUser } from "@/lib/api";
-import type { UserCreatePayload, Gender, SmokingStatus } from "@/types/user";
+import type { UserCreatePayload, Gender, SmokingStatus, DrinkingStatus } from "@/types/user";
 
 import {
     Card,
@@ -45,8 +45,15 @@ const INITIAL_FORM: Partial<UserCreatePayload> = {
     workplace: "",
     mbti: "",
     smoking_status: undefined,
+    drinking_status: undefined,
     religion: "",
+    exercise: "",
+    hobbies: "",
+    intro: "",
     photo_urls: [],
+    age_preference: [],
+    age_gap_older: undefined,
+    age_gap_younger: undefined,
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -130,13 +137,57 @@ export default function RegistrationForm() {
         setForm((prev) => ({ ...prev, [name]: value }));
     };
 
+    // 연령 선호 토글 (ANY 선택 시 다른 항목 해제)
+    const handleAgePreference = (value: "OLDER" | "YOUNGER" | "SAME" | "ANY") => {
+        setForm((prev) => {
+            const current = prev.age_preference ?? [];
+            let next: typeof current;
+            if (value === "ANY") {
+                next = current.includes("ANY") ? [] : ["ANY"];
+            } else {
+                const withoutAny = current.filter((v) => v !== "ANY");
+                next = withoutAny.includes(value)
+                    ? withoutAny.filter((v) => v !== value)
+                    : [...withoutAny, value];
+            }
+            return {
+                ...prev,
+                age_preference: next,
+                // OLDER 해제되면 연상 나이차 삭제, YOUNGER 해제되면 연하 나이차 삭제
+                age_gap_older: next.includes("OLDER") ? prev.age_gap_older : undefined,
+                age_gap_younger: next.includes("YOUNGER") ? prev.age_gap_younger : undefined,
+            };
+        });
+    };
+
+    const showOlderGap = (form.age_preference ?? []).includes("OLDER");
+    const showYoungerGap = (form.age_preference ?? []).includes("YOUNGER");
+
+    const AGE_PREF_OPTIONS: { value: "OLDER" | "YOUNGER" | "SAME" | "ANY"; label: string }[] = [
+        { value: "OLDER", label: "연상" },
+        { value: "YOUNGER", label: "연하" },
+        { value: "SAME", label: "동갑" },
+        { value: "ANY", label: "상관없음" },
+    ];
+
+    // 제출 시 빈 문자열 필드 정리
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus("loading");
         setErrorMsg("");
 
+        if (!form.age_preference || form.age_preference.length === 0) {
+            setStatus("error");
+            setErrorMsg("선호 연령대를 선택해 주세요.");
+            return;
+        }
+
         try {
-            await registerUser(form as UserCreatePayload);
+            const cleaned: Partial<UserCreatePayload> = {};
+            for (const [k, v] of Object.entries(form)) {
+                if (v !== "") (cleaned as Record<string, unknown>)[k] = v;
+            }
+            await registerUser(cleaned as UserCreatePayload);
             setStatus("success");
         } catch (err) {
             setStatus("error");
@@ -177,6 +228,14 @@ export default function RegistrationForm() {
     // ── 등록 폼 ──────────────────────────────────────────────────
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
+            {/* 무료 안내 배너 */}
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                <span className="text-green-600 text-lg">🎁</span>
+                <p className="text-green-700 text-sm font-semibold">
+                    TwoDegrees의 모든 서비스는 <span className="underline">무료</span>입니다.
+                </p>
+            </div>
+
             {/* ① 기본 정보 */}
             <SectionCard
                 title="🧑 기본 정보"
@@ -282,7 +341,7 @@ export default function RegistrationForm() {
             {/* ② 상대방 조건 */}
             <SectionCard
                 title="💌 상대방 조건"
-                description="원하는 상대방의 조건을 자유롭게 작성해 주세요."
+                description="원하는 상대방의 조건을 자유롭게 작성해 주세요. 구체적일수록 매칭 확률이 높아집니다."
             >
                 <Field label="원하는 상대방 조건" required>
                     <Textarea
@@ -311,6 +370,62 @@ export default function RegistrationForm() {
                         className="resize-none"
                     />
                 </Field>
+
+                {/* 선호 연령대 (필수) */}
+                <Field label="선호 연령대" required hint="복수 선택 가능. '상관없음' 선택 시 다른 항목 자동 해제">
+                    <div className="flex flex-wrap gap-2">
+                        {AGE_PREF_OPTIONS.map((opt) => (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => handleAgePreference(opt.value)}
+                                className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm font-medium transition-colors
+                                    ${(form.age_preference ?? []).includes(opt.value)
+                                        ? "bg-blue-600 text-white border-blue-600"
+                                        : "bg-white text-slate-700 border-slate-200 hover:border-blue-400"
+                                    }`}
+                            >
+                                {(form.age_preference ?? []).includes(opt.value) ? "✓ " : ""}{opt.label}
+                            </button>
+                        ))}
+                    </div>
+                    {/* 연상 허용 나이차 */}
+                    {showOlderGap && (
+                        <div className="mt-3 flex items-center gap-2">
+                            <span className="text-slate-600 text-sm shrink-0 w-20">연상 최대</span>
+                            <Input
+                                id="age_gap_older"
+                                name="age_gap_older"
+                                type="number"
+                                min={1}
+                                max={20}
+                                placeholder="예: 5"
+                                value={form.age_gap_older ?? ""}
+                                onChange={handleChange}
+                                className="w-20"
+                            />
+                            <span className="text-slate-600 text-sm shrink-0">살</span>
+                        </div>
+                    )}
+                    {/* 연하 허용 나이차 */}
+                    {showYoungerGap && (
+                        <div className="mt-2 flex items-center gap-2">
+                            <span className="text-slate-600 text-sm shrink-0 w-20">연하 최대</span>
+                            <Input
+                                id="age_gap_younger"
+                                name="age_gap_younger"
+                                type="number"
+                                min={1}
+                                max={20}
+                                placeholder="예: 3"
+                                value={form.age_gap_younger ?? ""}
+                                onChange={handleChange}
+                                className="w-20"
+                            />
+                            <span className="text-slate-600 text-sm shrink-0">살</span>
+                        </div>
+                    )}
+                </Field>
             </SectionCard>
 
             {/* ③ 선택 정보 */}
@@ -318,20 +433,80 @@ export default function RegistrationForm() {
                 title="📋 선택 정보"
                 description="작성할수록 더 정확한 매칭이 가능합니다. (모두 선택 사항)"
             >
-                {/* 키 */}
-                <Field label="키 (cm)">
-                    <Input
-                        id="height"
-                        name="height"
-                        type="number"
-                        min={140}
-                        max={220}
-                        value={form.height ?? ""}
-                        onChange={handleChange}
-                    />
-                </Field>
+                {/* 2열 그리드: MBTI · 흡연 · 음주 · 종교 · 키 · 운동 */}
+                <div className="grid grid-cols-2 gap-3">
+                    <Field label="MBTI">
+                        <Input
+                            id="mbti"
+                            name="mbti"
+                            placeholder="예: ENFP"
+                            value={form.mbti ?? ""}
+                            onChange={handleChange}
+                            maxLength={4}
+                        />
+                    </Field>
 
-                {/* 주 활동 지역 */}
+                    <Field label="종교">
+                        <Input
+                            id="religion"
+                            name="religion"
+                            placeholder="예: 무교"
+                            value={form.religion ?? ""}
+                            onChange={handleChange}
+                        />
+                    </Field>
+
+                    <Field label="흡연 여부">
+                        <Select
+                            value={form.smoking_status ?? ""}
+                            onValueChange={(v) => handleSelect("smoking_status", v as SmokingStatus)}
+                        >
+                            <SelectTrigger id="smoking_status"><SelectValue placeholder="선택" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="NON_SMOKER">비흡연</SelectItem>
+                                <SelectItem value="SMOKER">흡연</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </Field>
+
+                    <Field label="음주 여부">
+                        <Select
+                            value={form.drinking_status ?? ""}
+                            onValueChange={(v) => handleSelect("drinking_status", v as DrinkingStatus)}
+                        >
+                            <SelectTrigger id="drinking_status"><SelectValue placeholder="선택" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="NON_DRINKER">비음주</SelectItem>
+                                <SelectItem value="SOCIAL_DRINKER">가끔 (회식 등)</SelectItem>
+                                <SelectItem value="DRINKER">음주</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </Field>
+
+                    <Field label="키 (cm)">
+                        <Input
+                            id="height"
+                            name="height"
+                            type="number"
+                            min={140}
+                            max={220}
+                            value={form.height ?? ""}
+                            onChange={handleChange}
+                        />
+                    </Field>
+
+                    <Field label="운동">
+                        <Input
+                            id="exercise"
+                            name="exercise"
+                            placeholder="예: 주 3회 헬스"
+                            value={form.exercise ?? ""}
+                            onChange={handleChange}
+                        />
+                    </Field>
+                </div>
+
+                {/* 전체 너비 필드 */}
                 <Field label="주 활동 지역">
                     <Input
                         id="active_area"
@@ -342,7 +517,6 @@ export default function RegistrationForm() {
                     />
                 </Field>
 
-                {/* 학력 */}
                 <Field label="학력">
                     <Input
                         id="education"
@@ -353,7 +527,6 @@ export default function RegistrationForm() {
                     />
                 </Field>
 
-                {/* 직장 위치 */}
                 <Field label="직장 위치">
                     <Input
                         id="workplace"
@@ -364,46 +537,28 @@ export default function RegistrationForm() {
                     />
                 </Field>
 
-                {/* MBTI */}
-                <Field label="MBTI">
+                <Field label="취미">
                     <Input
-                        id="mbti"
-                        name="mbti"
-                        placeholder="예: ENFP"
-                        value={form.mbti ?? ""}
-                        onChange={handleChange}
-                        maxLength={4}
-                    />
-                </Field>
-
-                {/* 흡연 여부 */}
-                <Field label="흡연 여부">
-                    <Select
-                        value={form.smoking_status ?? ""}
-                        onValueChange={(v) => handleSelect("smoking_status", v as SmokingStatus)}
-                    >
-                        <SelectTrigger id="smoking_status">
-                            <SelectValue placeholder="선택해 주세요" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="NON_SMOKER">비흡연</SelectItem>
-                            <SelectItem value="SMOKER">흡연</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </Field>
-
-                {/* 종교 */}
-                <Field label="종교">
-                    <Input
-                        id="religion"
-                        name="religion"
-                        placeholder="예: 무교, 기독교, 불교"
-                        value={form.religion ?? ""}
+                        id="hobbies"
+                        name="hobbies"
+                        placeholder="예: 등산, 연주, 요리"
+                        value={form.hobbies ?? ""}
                         onChange={handleChange}
                     />
                 </Field>
 
-                {/* 인스타그램 아이디 */}
+                <Field label="간단한 자기소개" hint="철자한 신원이 기준 매칭에 사용됩니다.">
+                    <Textarea
+                        id="intro"
+                        name="intro"
+                        placeholder="자신을 간단히 소개해 보세요."
+                        rows={3}
+                        value={form.intro ?? ""}
+                        onChange={handleChange}
+                        className="resize-none"
+                    />
+                </Field>
+
                 <Field label="인스타그램 아이디" hint="본인 확인 및 매칭 참고용으로 사용됩니다.">
                     <Input
                         id="instagram_id"
@@ -416,7 +571,7 @@ export default function RegistrationForm() {
                 </Field>
 
                 {/* 프로필 사진 */}
-                <Field label="프로필 사진" hint="철저한 신원 확인을 위해 실제 사진을 등록해 주세요. (S3 환경변수 설정 후 활성화)">
+                <Field label="프로필 사진" hint="철저한 신원 확인을 위해 실제 사진을 등록해 주세요.">
                     <ImageUploader
                         value={form.photo_urls ?? []}
                         onChange={(urls) => setForm((prev) => ({ ...prev, photo_urls: urls }))}
