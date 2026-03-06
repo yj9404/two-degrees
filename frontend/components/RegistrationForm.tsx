@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ImageUploader from "@/components/ImageUploader";
+import { SectionCard } from "@/components/SectionCard";
+import { Field } from "@/components/Field";
 
 // ────────────────────────────────────────────────────────────────
 // 초기 폼 상태
@@ -56,60 +58,6 @@ const INITIAL_FORM: Partial<UserCreatePayload> = {
     age_gap_younger: undefined,
 };
 
-// ────────────────────────────────────────────────────────────────
-// 헬퍼: 섹션 헤더
-// ────────────────────────────────────────────────────────────────
-function SectionCard({
-    title,
-    description,
-    children,
-}: {
-    title: string;
-    description?: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <Card className="shadow-sm">
-            <CardHeader className="pb-4">
-                <CardTitle className="text-slate-900 font-semibold text-base">
-                    {title}
-                </CardTitle>
-                {description && (
-                    <CardDescription className="text-slate-500 text-sm">
-                        {description}
-                    </CardDescription>
-                )}
-            </CardHeader>
-            <CardContent className="space-y-4">{children}</CardContent>
-        </Card>
-    );
-}
-
-// ────────────────────────────────────────────────────────────────
-// 헬퍼: 필드 래퍼
-// ────────────────────────────────────────────────────────────────
-function Field({
-    label,
-    required,
-    children,
-    hint,
-}: {
-    label: string;
-    required?: boolean;
-    children: React.ReactNode;
-    hint?: string;
-}) {
-    return (
-        <div className="space-y-1">
-            <Label className="text-slate-900 font-semibold text-sm">
-                {label}
-                {required && <span className="text-red-500 ml-0.5">*</span>}
-            </Label>
-            {children}
-            {hint && <p className="text-slate-500 text-xs">{hint}</p>}
-        </div>
-    );
-}
 
 // ────────────────────────────────────────────────────────────────
 // 메인 컴포넌트
