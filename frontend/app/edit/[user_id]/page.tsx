@@ -575,7 +575,7 @@ export default function EditProfilePage() {
                             <Textarea
                                 id="edit-intro"
                                 name="intro"
-                                placeholder="차별성 있게 자신을 간단히 소개해 보세요."
+                                placeholder="자신을 간단히 소개해 보세요."
                                 rows={3}
                                 value={form.intro ?? ""}
                                 onChange={handleChange}

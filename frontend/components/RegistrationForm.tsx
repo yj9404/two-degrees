@@ -547,7 +547,7 @@ export default function RegistrationForm() {
                     />
                 </Field>
 
-                <Field label="간단한 자기소개" hint="철자한 신원이 기준 매칭에 사용됩니다.">
+                <Field label="간단한 자기소개">
                     <Textarea
                         id="intro"
                         name="intro"
