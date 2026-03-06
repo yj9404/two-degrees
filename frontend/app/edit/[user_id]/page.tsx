@@ -267,20 +267,19 @@ export default function EditProfilePage() {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* 통계 배너 */}
-                    {stats && stats.total_active > 0 && (
+                    {stats && (
                         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                             <span className="text-blue-600 text-lg">📊</span>
                             <div className="text-blue-900 text-sm">
-                                <span className="font-semibold block mb-0.5">현재 활성화 프로필 성비</span>
+                                <span className="font-semibold block mb-0.5">현재 전체 프로필 성비 (활성화 기준)</span>
                                 남 <span className="font-bold">{stats.male_ratio}%</span> / 여 <span className="font-bold">{stats.female_ratio}%</span>
-                                <span className="text-blue-500 text-xs ml-2">(총 {stats.total_active}명)</span>
                             </div>
                         </div>
                     )}
 
                     {/* ── 매칭 풀 노출 토글 ── */}
                     <Card className="shadow-sm border-2 border-blue-100 bg-blue-50/50">
-                        <CardContent className="pt-6 pb-6">
+                        <CardContent className="pt-4 pb-4 px-4">
                             <div className="flex items-center justify-between gap-4">
                                 <div className="space-y-1">
                                     <p className="text-slate-900 font-semibold text-sm">

@@ -235,13 +235,12 @@ export default function RegistrationForm() {
             {/* 상단 배너 영역 */}
             <div className="space-y-2">
                 {/* 통계 배너 */}
-                {stats && stats.total_active > 0 && (
+                {stats && (
                     <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                         <span className="text-blue-600 text-lg">📊</span>
                         <div className="text-blue-900 text-sm">
-                            <span className="font-semibold block mb-0.5">현재 활성화 프로필 성비</span>
+                            <span className="font-semibold block mb-0.5">현재 전체 프로필 성비 (활성화 기준)</span>
                             남 <span className="font-bold">{stats.male_ratio}%</span> / 여 <span className="font-bold">{stats.female_ratio}%</span>
-                            <span className="text-blue-500 text-xs ml-2">(총 {stats.total_active}명)</span>
                         </div>
                     </div>
                 )}

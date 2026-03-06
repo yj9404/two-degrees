@@ -49,9 +49,15 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
-        {children}
+        <div className="flex-1">
+          {children}
+        </div>
+        {/* 서비스 공통 최하단 버전 표시 */}
+        <footer className="py-6 text-center text-xs text-slate-400 bg-slate-50">
+          TwoDegrees v0.0.1
+        </footer>
       </body>
     </html>
   );
