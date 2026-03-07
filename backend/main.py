@@ -12,6 +12,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 import bcrypt
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -63,6 +64,32 @@ def hash_password(plain: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
+
+
+# ---------------------------------------------------------------------------
+# 관리자 인증 의존성
+# ---------------------------------------------------------------------------
+
+admin_password_header = APIKeyHeader(name="X-Admin-Password", auto_error=False)
+
+
+def verify_admin(x_admin_password: str = Depends(admin_password_header)):
+    """
+    HTTP 헤더의 X-Admin-Password와 환경변수 ADMIN_PASSWORD를 비교하여 인증합니다.
+    """
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if not admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="관리자 비밀번호가 서버에 설정되지 않았습니다.",
+        )
+
+    if x_admin_password != admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="관리자 권한이 없습니다.",
+        )
+    return x_admin_password
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +283,7 @@ def list_users(
     active_area: Optional[str] = Query(None, description="주 활동 지역 (부분 일치)"),
     is_active: Optional[bool] = Query(None, description="매칭 풀 활성 여부 필터"),
     db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
 ):
     """
     등록된 유저 목록을 반환합니다. 쿼리 파라미터로 복합 필터링을 지원합니다.
@@ -358,7 +386,7 @@ def admin_auth(payload: AdminAuthRequest):
     summary="유저 삭제 (관리자)",
     tags=["admin"],
 )
-def delete_user(user_id: str, db: Session = Depends(get_db)):
+def delete_user(user_id: str, db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
     """
     user_id(UUID)에 해당하는 유저를 영구 삭제합니다.
     """
@@ -390,6 +418,7 @@ def delete_user(user_id: str, db: Session = Depends(get_db)):
 def proxy_photo(
     url: str = Query(..., description="다운로드할 이미지 Public URL"),
     name: str = Query("photo", description="저장 파일명 (확장자 제외)"),
+    _admin: str = Depends(verify_admin),
 ):
     """
     Cloudflare R2 등 cross-origin 이미지를 브라우저가 직접 다운로드할 수 있도록
@@ -450,7 +479,7 @@ def _build_matching_response(matching: Matching, db: Session):
     summary="수동 매칭 생성",
     tags=["matchings"],
 )
-def create_matching(payload: MatchingCreate, db: Session = Depends(get_db)):
+def create_matching(payload: MatchingCreate, db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
     """관리자가 두 유저를 선택하여 새로운 매칭을 생성합니다."""
     user_a = db.query(User).filter(User.id == payload.user_a_id).first()
     user_b = db.query(User).filter(User.id == payload.user_b_id).first()
@@ -499,7 +528,8 @@ def create_matching(payload: MatchingCreate, db: Session = Depends(get_db)):
 )
 def list_matchings(
     status_filter: Optional[str] = Query(None, description="상태별 조회 (PENDING, ACCEPTED, REJECTED)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
 ):
     query = db.query(Matching)
     if status_filter:
@@ -530,7 +560,8 @@ def list_matchings(
 def update_matching_status(
     matching_id: str,
     payload: MatchingUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
 ):
     matching = db.query(Matching).filter(Matching.id == matching_id).first()
     if not matching:
