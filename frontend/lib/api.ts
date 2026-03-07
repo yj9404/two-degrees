@@ -201,6 +201,13 @@ export async function updateMatchingStatus(
     });
 }
 
+/** DELETE /api/matchings/{matching_id} – 매칭 삭제 (관리자) */
+export async function deleteMatching(matchingId: string): Promise<void> {
+    return apiFetch(`/api/matchings/${matchingId}`, {
+        method: "DELETE",
+    });
+}
+
 /** POST /api/matchings/ai-recommend – AI 추천 (관리자) */
 export async function getAIRecommendations(
     payload: AIRecommendRequest

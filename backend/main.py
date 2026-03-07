@@ -45,7 +45,7 @@ from schemas import (
 app = FastAPI(
     title="TwoDegrees API",
     description="소개팅 풀 등록 및 관리 API",
-    version="0.0.6",
+    version="0.0.7",
 )
 
 # 개발 편의를 위해 CORS 전체 허용 (운영 시 origins 제한 필요)
@@ -602,11 +602,12 @@ def update_matching_status(
     payload: MatchingUpdate,
     db: Session = Depends(get_db),
     _admin: str = Depends(verify_admin),
-):
+) -> MatchingResponse:
     matching = db.query(Matching).filter(Matching.id == matching_id).first()
     if not matching:
         raise HTTPException(status_code=404, detail="매칭 정보를 찾을 수 없습니다.")
 
+    # 어느 유저의 상태를 업데이트할지 확인 (MatchingUpdate 스키마 기반)
     if payload.user_id == matching.user_a_id:
         matching.user_a_status = payload.status
     elif payload.user_id == matching.user_b_id:
@@ -618,6 +619,36 @@ def update_matching_status(
     db.refresh(matching)
     
     return _build_matching_response(matching, db)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/matchings/{matching_id} – 매칭 삭제 (관리자 전용)
+# ---------------------------------------------------------------------------
+
+@app.delete(
+    "/api/matchings/{matching_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="매칭 삭제",
+    tags=["matchings"],
+)
+def delete_matching(
+    matching_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """
+    matching_id(UUID)에 해당하는 매칭 정보를 영구 삭제합니다.
+    """
+    matching = db.query(Matching).filter(Matching.id == matching_id).first()
+    if not matching:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="매칭 정보를 찾을 수 없습니다.",
+        )
+
+    db.delete(matching)
+    db.commit()
+    return None
 
 
 # ---------------------------------------------------------------------------

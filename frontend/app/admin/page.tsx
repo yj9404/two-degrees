@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAIRecommendations } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAIRecommendations, deleteMatching } from "@/lib/api";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -177,6 +177,106 @@ function UserDetailDialog({
                 </div>
             </DialogContent>
         </Dialog>
+    );
+}
+
+// ─────────────────────────────────────────────
+// 유저 카드 컴포넌트
+// ─────────────────────────────────────────────
+function UserCard({
+    user,
+    selectedUserIds,
+    onSelect,
+    onDetail,
+    onToggleActive,
+    onDelete,
+}: {
+    user: UserReadAdmin;
+    selectedUserIds: string[];
+    onSelect: (user: UserReadAdmin) => void;
+    onDetail: () => void;
+    onToggleActive: (user: UserReadAdmin) => void;
+    onDelete: () => void;
+}) {
+    const cardBgClass = user.gender === "MALE"
+        ? "bg-blue-50/20 hover:bg-blue-50/60 border-blue-100"
+        : "bg-pink-50/20 hover:bg-pink-50/60 border-pink-100";
+
+    const cardBorderClass = user.gender === "MALE"
+        ? "hover:border-blue-400"
+        : "hover:border-pink-400";
+
+    return (
+        <Card
+            className={`shadow-sm transition-opacity cursor-pointer ${cardBgClass} ${cardBorderClass} ${user.is_active ? "" : "opacity-50"}`}
+            onClick={onDetail}
+        >
+            <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                    {/* 체크박스 (매칭용) */}
+                    <div className="shrink-0 flex items-center justify-center p-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                            type="checkbox"
+                            className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            checked={selectedUserIds.includes(user.id)}
+                            onChange={() => onSelect(user)}
+                            disabled={!user.is_active}
+                        />
+                    </div>
+
+                    {/* 아바타 */}
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden">
+                        {user.gender === "MALE" ? "👨" : "👩"}
+                    </div>
+
+                    {/* 기본 정보 */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-slate-900 font-semibold text-sm truncate">
+                                {user.name}
+                            </span>
+                            <span className="text-slate-400 text-[10px]">
+                                {user.birth_year % 100}년생
+                            </span>
+                        </div>
+                        <p className="text-slate-500 text-[10px] truncate mt-0.5">
+                            {user.job}
+                        </p>
+                    </div>
+
+                    {/* 액션 */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* 활성 토글 */}
+                        <div
+                            className="flex flex-col items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <Switch
+                                checked={user.is_active}
+                                onCheckedChange={() => onToggleActive(user)}
+                                className="scale-75 data-[state=checked]:bg-blue-600"
+                            />
+                            <span className="text-[8px] text-slate-400">
+                                {user.is_active ? "활성" : "비활성"}
+                            </span>
+                        </div>
+
+                        {/* 삭제 */}
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete();
+                            }}
+                            className="h-8 w-8 p-0 text-red-400 hover:text-red-600 transition-colors"
+                        >
+                            <span className="text-xl">×</span>
+                        </Button>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 
@@ -407,6 +507,17 @@ export default function AdminPage() {
         }
     };
 
+    const handleDeleteMatching = async (matchingId: string) => {
+        if (!confirm("정말 이 매칭을 삭제하시겠습니까?")) return;
+        try {
+            await deleteMatching(matchingId);
+            setMatchings(prev => prev.filter(m => m.id !== matchingId));
+            alert("매칭이 삭제되었습니다.");
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "매칭 삭제 실패");
+        }
+    };
+
     // ─────────────────────────────────────────
     // 로그인 화면
     // ─────────────────────────────────────────
@@ -577,108 +688,58 @@ export default function AdminPage() {
                         {filteredUsers.length === 0 && !loadingUsers ? (
                             <p className="text-center text-slate-400 py-16">가입자가 없습니다.</p>
                         ) : (
-                            <div className="space-y-3">
-                                {filteredUsers.map((user) => {
-                                    const cardBgClass = user.gender === "MALE"
-                                        ? "bg-blue-50/20 hover:bg-blue-50/60 border-blue-100"
-                                        : "bg-pink-50/20 hover:bg-pink-50/60 border-pink-100";
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* 남성 목록 */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between border-b border-blue-100 pb-2">
+                                        <h3 className="text-blue-700 font-bold flex items-center gap-2">
+                                            <span>👨 남성</span>
+                                            <span className="text-xs bg-blue-100 px-2 py-0.5 rounded-full">{filteredUsers.filter(u => u.gender === "MALE").length}</span>
+                                        </h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {filteredUsers.filter(u => u.gender === "MALE").map((user) => (
+                                            <UserCard
+                                                key={user.id}
+                                                user={user}
+                                                selectedUserIds={selectedUserIds}
+                                                onSelect={handleSelectUser}
+                                                onDetail={() => setSelectedUser(user)}
+                                                onToggleActive={handleToggleActive}
+                                                onDelete={() => setToDeleteId(user.id)}
+                                            />
+                                        ))}
+                                        {filteredUsers.filter(u => u.gender === "MALE").length === 0 && (
+                                            <p className="text-center text-slate-300 py-8 text-sm italic">해당하는 남성이 없습니다.</p>
+                                        )}
+                                    </div>
+                                </div>
 
-                                    const cardBorderClass = user.gender === "MALE"
-                                        ? "hover:border-blue-400"
-                                        : "hover:border-pink-400";
-
-                                    return (
-                                        <Card
-                                            key={user.id}
-                                            className={`shadow-sm transition-opacity cursor-pointer ${cardBgClass} ${cardBorderClass} ${user.is_active ? "" : "opacity-50"}`}
-                                            onClick={() => setSelectedUser(user)}
-                                        >
-                                            <CardContent className="pt-4 pb-4">
-                                                <div className="flex items-center gap-4">
-                                                    {/* 체크박스 (매칭용) */}
-                                                    <div className="shrink-0 flex items-center justify-center p-1" onClick={(e) => e.stopPropagation()}>
-                                                        <input
-                                                            type="checkbox"
-                                                            className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            checked={selectedUserIds.includes(user.id)}
-                                                            onChange={() => handleSelectUser(user)}
-                                                            disabled={!user.is_active}
-                                                        />
-                                                    </div>
-
-                                                    {/* 아바타 */}
-                                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden">
-                                                        {user.gender === "MALE" ? "👨" : "👩"}
-                                                    </div>
-
-                                                    {/* 기본 정보 */}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="text-slate-900 font-semibold text-sm">
-                                                                {user.name}
-                                                            </span>
-                                                            <span className="text-slate-400 text-xs">
-                                                                {GENDER_LABEL[user.gender]} · {user.birth_year}년생
-                                                            </span>
-                                                            <span className="text-slate-400 text-xs truncate">
-                                                                {user.contact}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-slate-500 text-xs mt-0.5 truncate">
-                                                            {user.job}
-                                                            {user.active_area ? ` · ${user.active_area}` : ""}
-                                                            {user.referrer_name ? ` · 추천: ${user.referrer_name}` : ""}
-                                                        </p>
-                                                    </div>
-
-                                                    {/* 액션 */}
-                                                    <div className="flex items-center gap-3 shrink-0">
-                                                        {/* 활성 토글 */}
-                                                        <div
-                                                            className="flex flex-col items-center gap-1"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                            <Switch
-                                                                checked={user.is_active}
-                                                                onCheckedChange={() => handleToggleActive(user)}
-                                                                className="data-[state=checked]:bg-blue-600"
-                                                            />
-                                                            <span className="text-[10px] text-slate-400">
-                                                                {user.is_active ? "활성" : "비활성"}
-                                                            </span>
-                                                        </div>
-
-                                                        {/* 상세보기 */}
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedUser(user);
-                                                            }}
-                                                            className="text-xs"
-                                                        >
-                                                            상세
-                                                        </Button>
-
-                                                        {/* 삭제 */}
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setToDeleteId(user.id);
-                                                            }}
-                                                            className="text-xs text-red-500 border-red-200 hover:bg-red-50"
-                                                        >
-                                                            삭제
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    );
-                                })}
+                                {/* 여성 목록 */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between border-b border-pink-100 pb-2">
+                                        <h3 className="text-pink-700 font-bold flex items-center gap-2">
+                                            <span>👩 여성</span>
+                                            <span className="text-xs bg-pink-100 px-2 py-0.5 rounded-full">{filteredUsers.filter(u => u.gender === "FEMALE").length}</span>
+                                        </h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {filteredUsers.filter(u => u.gender === "FEMALE").map((user) => (
+                                            <UserCard
+                                                key={user.id}
+                                                user={user}
+                                                selectedUserIds={selectedUserIds}
+                                                onSelect={handleSelectUser}
+                                                onDetail={() => setSelectedUser(user)}
+                                                onToggleActive={handleToggleActive}
+                                                onDelete={() => setToDeleteId(user.id)}
+                                            />
+                                        ))}
+                                        {filteredUsers.filter(u => u.gender === "FEMALE").length === 0 && (
+                                            <p className="text-center text-slate-300 py-8 text-sm italic">해당하는 여성이 없습니다.</p>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -709,20 +770,30 @@ export default function AdminPage() {
                             <div className="space-y-4">
                                 {matchings.map((match) => (
                                     <Card key={match.id} className="shadow-sm border-slate-200 overflow-hidden">
-                                        <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                                        <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                                             <span>생성: {new Date(match.created_at).toLocaleString()}</span>
-                                            {(match.user_a_status === "ACCEPTED" && match.user_b_status === "ACCEPTED") ? (
-                                                <span className="font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">성사 완료! 🎉</span>
-                                            ) : (match.user_a_status === "REJECTED" || match.user_b_status === "REJECTED") ? (
-                                                <span className="font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full border border-red-200">매칭 실패</span>
-                                            ) : (
-                                                <span className="font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">진행 중 ⏳</span>
-                                            )}
+                                            <div className="flex items-center gap-1.5">
+                                                {(match.user_a_status === "ACCEPTED" && match.user_b_status === "ACCEPTED") ? (
+                                                    <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">성사 완료! 🎉</span>
+                                                ) : (match.user_a_status === "REJECTED" || match.user_b_status === "REJECTED") ? (
+                                                    <span className="font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">매칭 실패</span>
+                                                ) : (
+                                                    <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">진행 중 ⏳</span>
+                                                )}
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-7 w-7 p-0 text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors rounded-full"
+                                                    onClick={() => handleDeleteMatching(match.id)}
+                                                >
+                                                    <span className="text-xl font-medium leading-none">×</span>
+                                                </Button>
+                                            </div>
                                         </div>
                                         <CardContent className="p-0">
                                             <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                                                 {/* User A */}
-                                                <div className="p-4 flex flex-col gap-3 hover:bg-slate-50/50 transition-colors">
+                                                <div className={`p-4 flex flex-col gap-3 transition-colors ${match.user_a_info.gender === "MALE" ? "bg-blue-50/20" : "bg-pink-50/20"}`}>
                                                     <div
                                                         className="flex items-center gap-3 cursor-pointer group"
                                                         onClick={() => setSelectedUser(match.user_a_info)}
@@ -753,7 +824,7 @@ export default function AdminPage() {
                                                 </div>
 
                                                 {/* User B */}
-                                                <div className="p-4 flex flex-col gap-3 hover:bg-slate-50/50 transition-colors">
+                                                <div className={`p-4 flex flex-col gap-3 transition-colors ${match.user_b_info.gender === "MALE" ? "bg-blue-50/20" : "bg-pink-50/20"}`}>
                                                     <div
                                                         className="flex items-center gap-3 cursor-pointer group"
                                                         onClick={() => setSelectedUser(match.user_b_info)}
