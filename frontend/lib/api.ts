@@ -16,15 +16,36 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+/** 관리자 비밀번호 저장 (메모리상 유지) */
+let adminPassword: string | null = null;
+
+/** 관리자 인증 정보 설정 */
+export function setAdminPassword(pw: string) {
+    adminPassword = pw;
+}
+
 /** 공통 fetch 헬퍼 */
 async function apiFetch<T>(
     path: string,
     options: RequestInit
 ): Promise<T> {
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(options.headers as Record<string, string>),
+    };
+
+    if (adminPassword) {
+        headers["X-Admin-Password"] = adminPassword;
+    }
+
     const res = await fetch(`${API_BASE}${path}`, {
-        headers: { "Content-Type": "application/json" },
         ...options,
+        headers,
     });
+
+    if (res.status === 204) {
+        return null as unknown as T;
+    }
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -110,14 +131,9 @@ export async function listUsers(params?: {
 
 /** DELETE /api/users/{user_id} – 유저 삭제 (관리자) */
 export async function deleteUser(userId: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/api/users/${userId}`, {
+    return apiFetch(`/api/users/${userId}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
     });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.detail ?? `서버 오류 (${res.status})`);
-    }
 }
 
 /** GET /api/upload/presigned-url – S3 업로드용 Presigned URL 발급 */
