@@ -43,7 +43,7 @@ from schemas import (
 app = FastAPI(
     title="TwoDegrees API",
     description="소개팅 풀 등록 및 관리 API",
-    version="0.0.5",
+    version="0.0.6",
 )
 
 # 개발 편의를 위해 CORS 전체 허용 (운영 시 origins 제한 필요)
@@ -411,10 +411,10 @@ def admin_login(payload: AdminAuthRequest):
 @app.delete(
     "/api/users/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="유저 삭제 (관리자)",
-    tags=["admin"],
+    summary="유저 삭제",
+    tags=["users"],
 )
-def delete_user(user_id: str, db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
+def delete_user(user_id: str, db: Session = Depends(get_db)):
     """
     user_id(UUID)에 해당하는 유저를 영구 삭제합니다.
     """
