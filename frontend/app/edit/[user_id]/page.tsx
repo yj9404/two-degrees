@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getUser, updateUser, getUserStats } from "@/lib/api";
+import { getUser, updateUser, getUserStats, deleteUser } from "@/lib/api";
 import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus, UserStatsResponse } from "@/types/user";
 
 import {
@@ -12,6 +12,17 @@ import {
     CardTitle,
     CardDescription,
 } from "@/components/ui/card";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +57,7 @@ export default function EditProfilePage() {
     >("idle");
     const [errorMsg, setErrorMsg] = useState("");
     const [stats, setStats] = useState<UserStatsResponse | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // ── 기존 데이터 불러오기 (pre-fill) ──────────────────────────
     useEffect(() => {
@@ -152,6 +164,18 @@ export default function EditProfilePage() {
         } catch (err) {
             setSaveStatus("error");
             setErrorMsg(err instanceof Error ? err.message : "알 수 없는 오류");
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        setIsDeleting(true);
+        try {
+            await deleteUser(user_id);
+            alert("프로필이 성공적으로 삭제되었습니다.");
+            router.push("/");
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "삭제 실패");
+            setIsDeleting(false);
         }
     };
 
@@ -634,6 +658,38 @@ export default function EditProfilePage() {
                             </p>
                         </div>
                     </details>
+                </div>
+
+                {/* 계정 삭제 */}
+                <div className="pt-8 pb-12 flex justify-center">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" className="w-full sm:w-auto font-semibold">
+                                계정 삭제 (Delete Account)
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="w-[90vw] max-w-md rounded-xl p-6">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-xl">정말 프로필을 삭제하시겠습니까?</AlertDialogTitle>
+                                <AlertDialogDescription className="text-base text-slate-500">
+                                    이 작업은 되돌릴 수 없으며, 모든 데이터가 영구적으로 삭제됩니다.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-4 sm:space-x-2">
+                                <AlertDialogCancel disabled={isDeleting} className="mt-2 sm:mt-0">취소</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleDeleteAccount();
+                                    }}
+                                    disabled={isDeleting}
+                                    className="bg-red-500 hover:bg-red-600 focus:ring-red-500 text-white border-0"
+                                >
+                                    {isDeleting ? "삭제 중..." : "확인 (Continue)"}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
 
 
