@@ -6,13 +6,16 @@ TwoDegrees FastAPI 애플리케이션 엔트리포인트
 from typing import Optional
 import os
 import urllib.parse
+import secrets
+import jwt
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
+from fastapi.security import OAuth2PasswordBearer
 import bcrypt
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -40,7 +43,7 @@ from schemas import (
 app = FastAPI(
     title="TwoDegrees API",
     description="소개팅 풀 등록 및 관리 API",
-    version="0.0.4",
+    version="0.0.5",
 )
 
 # 개발 편의를 위해 CORS 전체 허용 (운영 시 origins 제한 필요)
@@ -67,29 +70,47 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# 관리자 인증 의존성
+# 관리자 인증 의존성 (JWT)
 # ---------------------------------------------------------------------------
 
-admin_password_header = APIKeyHeader(name="X-Admin-Password", auto_error=False)
+JWT_SECRET = os.environ.get("JWT_SECRET", secrets.token_hex(32))
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_MINUTES = 60 * 24  # 1일
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/login", auto_error=False)
 
 
-def verify_admin(x_admin_password: str = Depends(admin_password_header)):
+def verify_admin(token: str = Depends(oauth2_scheme)):
     """
-    HTTP 헤더의 X-Admin-Password와 환경변수 ADMIN_PASSWORD를 비교하여 인증합니다.
+    JWT 토큰을 검증하여 관리자 권한을 인증합니다.
     """
-    admin_password = os.environ.get("ADMIN_PASSWORD")
-    if not admin_password:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="관리자 비밀번호가 서버에 설정되지 않았습니다.",
-        )
-
-    if x_admin_password != admin_password:
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="관리자 권한이 없습니다.",
+            detail="관리자 권한이 없습니다. (토큰 누락)",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    return x_admin_password
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("sub") != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="권한이 없습니다.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return "admin"
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="토큰이 만료되었습니다.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 토큰입니다.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -347,17 +368,17 @@ def get_presigned_url(
 
 
 # ---------------------------------------------------------------------------
-# POST /api/admin/auth – 관리자 인증
+# POST /api/admin/login – 관리자 인증 (JWT 발급)
 # ---------------------------------------------------------------------------
 
 @app.post(
-    "/api/admin/auth",
-    summary="관리자 인증",
+    "/api/admin/login",
+    summary="관리자 로그인",
     tags=["admin"],
 )
-def admin_auth(payload: AdminAuthRequest):
+def admin_login(payload: AdminAuthRequest):
     """
-    .env의 ADMIN_PASSWORD와 일치하면 인증 성공.
+    .env의 ADMIN_PASSWORD와 일치하면 JWT 토큰을 발급합니다.
     ADMIN_PASSWORD가 설정되지 않으면 서비스 사용 불가 상태를 반환합니다.
     """
     admin_password = os.environ.get("ADMIN_PASSWORD")
@@ -367,13 +388,20 @@ def admin_auth(payload: AdminAuthRequest):
             detail="관리자 비밀번호가 설정되지 않았습니다. 서버 환경변수를 확인하세요.",
         )
 
-    if payload.password != admin_password:
+    # Timing attack 방지를 위해 secrets.compare_digest 사용
+    if not secrets.compare_digest(payload.password.encode("utf-8"), admin_password.encode("utf-8")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="관리자 비밀번호가 올바르지 않습니다.",
         )
 
-    return {"ok": True}
+    # JWT 생성
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=JWT_EXPIRATION_MINUTES)
+    to_encode = {"sub": "admin", "exp": expire}
+    access_token = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 # ---------------------------------------------------------------------------

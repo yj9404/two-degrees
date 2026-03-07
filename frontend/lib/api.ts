@@ -16,12 +16,12 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-/** 관리자 비밀번호 저장 (메모리상 유지) */
-let adminPassword: string | null = null;
+/** 관리자 JWT 토큰 저장 (메모리상 유지) */
+let adminToken: string | null = null;
 
-/** 관리자 인증 정보 설정 */
-export function setAdminPassword(pw: string) {
-    adminPassword = pw;
+/** 관리자 인증 토큰 설정 */
+export function setAdminToken(token: string) {
+    adminToken = token;
 }
 
 /** 공통 fetch 헬퍼 */
@@ -34,8 +34,8 @@ async function apiFetch<T>(
         ...(options.headers as Record<string, string>),
     };
 
-    if (adminPassword) {
-        headers["X-Admin-Password"] = adminPassword;
+    if (adminToken) {
+        headers["Authorization"] = `Bearer ${adminToken}`;
     }
 
     const res = await fetch(`${API_BASE}${path}`, {
@@ -109,9 +109,9 @@ export async function updateUser(
     });
 }
 
-/** POST /api/admin/auth – 관리자 인증 */
-export async function adminAuth(password: string): Promise<{ ok: boolean }> {
-    return apiFetch("/api/admin/auth", {
+/** POST /api/admin/login – 관리자 인증 */
+export async function adminAuth(password: string): Promise<{ access_token: string, token_type: string }> {
+    return apiFetch("/api/admin/login", {
         method: "POST",
         body: JSON.stringify({ password }),
     });
