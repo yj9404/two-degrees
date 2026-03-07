@@ -34,6 +34,8 @@ from schemas import (
     MatchingCreate,
     MatchingUpdate,
     MatchingResponse,
+    AIRecommendRequest,
+    AIRecommendResult,
 )
 
 # ---------------------------------------------------------------------------
@@ -74,7 +76,12 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ---------------------------------------------------------------------------
 
 FALLBACK_SECRET = os.environ.get("ADMIN_PASSWORD", "temp_static_secret_for_jwt")
-JWT_SECRET = os.environ.get("JWT_SECRET", FALLBACK_SECRET)
+_raw_secret = os.environ.get("JWT_SECRET", FALLBACK_SECRET)
+# HS256 requires at least 32 bytes (256 bits) for security and to avoid warnings
+if len(_raw_secret) < 32:
+    JWT_SECRET = _raw_secret.ljust(32, "0")
+else:
+    JWT_SECRET = _raw_secret
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_MINUTES = 60 * 24  # 1일
 
@@ -491,6 +498,8 @@ def _build_matching_response(matching: Matching, db: Session):
         "user_b_id": matching.user_b_id,
         "user_a_status": matching.user_a_status,
         "user_b_status": matching.user_b_status,
+        "ai_score": matching.ai_score,
+        "ai_reason": matching.ai_reason,
         "created_at": matching.created_at,
         "user_a_info": user_a,
         "user_b_info": user_b,
@@ -535,7 +544,9 @@ def create_matching(payload: MatchingCreate, db: Session = Depends(get_db), _adm
 
     new_matching = Matching(
         user_a_id=sorted_ids[0],
-        user_b_id=sorted_ids[1]
+        user_b_id=sorted_ids[1],
+        ai_score=payload.ai_score,
+        ai_reason=payload.ai_reason
     )
     
     db.add(new_matching)
@@ -607,3 +618,86 @@ def update_matching_status(
     db.refresh(matching)
     
     return _build_matching_response(matching, db)
+
+
+# ---------------------------------------------------------------------------
+# POST /api/matchings/ai-recommend – AI 기반 매칭 추천 (Stateless)
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/api/matchings/ai-recommend",
+    response_model=list[AIRecommendResult],
+    summary="AI 매칭 추천",
+    tags=["matchings"],
+)
+def ai_recommend_matchings(
+    payload: AIRecommendRequest,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """
+    타겟 유저와 후보 유저들의 정보(민감정보 제외)를 비교하여 
+    Gemini AI가 평가한 적합도 점수와 추천 사유를 반환합니다. 
+    **기존 매칭 이력이 있는 유저는 자동으로 제외됩니다.**
+    """
+    # 1. 타겟 유저 조회
+    target_user = db.query(User).filter(User.id == payload.target_user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="타겟 유저를 찾을 수 없습니다.")
+
+    # 2. 기 매칭 이력이 있는 후보 제외
+    existing_matches = db.query(Matching).filter(
+        (Matching.user_a_id == payload.target_user_id) | 
+        (Matching.user_b_id == payload.target_user_id)
+    ).all()
+    
+    matched_user_ids = {m.user_a_id for m in existing_matches} | {m.user_b_id for m in existing_matches}
+    matched_user_ids.add(payload.target_user_id) # 자기 자신도 제외
+
+    valid_candidate_ids = [c_id for c_id in payload.candidate_user_ids if c_id not in matched_user_ids]
+    
+    if not valid_candidate_ids:
+        return []
+
+    # 3. 유효한 후보 유저들 조회
+    candidates = db.query(User).filter(User.id.in_(valid_candidate_ids)).all()
+    if not candidates:
+        return []
+
+    # 4. 프롬프트용 데이터 필터링 (JSON으로 직렬화할 수 있도록 Pydantic 모델을 활용)
+    from schemas import UserRead
+    
+    # UserRead는 이름, 연락처(X), 비밀번호(X)를 다루며, 
+    # 이름과 지인이름도 추가로 프롬프트에서 가려주기 위해 pop 처리합니다.
+    target_dict = UserRead.model_validate(target_user).model_dump(mode='json')
+    target_dict.pop("name", None)
+    target_dict.pop("referrer_name", None)
+
+    candidates_dict_list = []
+    for c in candidates:
+        c_dict = UserRead.model_validate(c).model_dump(mode='json')
+        c_dict.pop("name", None)
+        c_dict.pop("referrer_name", None)
+        candidates_dict_list.append(c_dict)
+
+    # 5. Gemini API 연동 모듈 호출
+    from utils.gemini import get_ai_recommendations
+    try:
+        recommendations = get_ai_recommendations(target_dict, candidates_dict_list)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러가 발생했습니다: {str(e)}")
+
+    # 6. 결과 검증 및 정렬
+    valid_results = []
+    for rec in recommendations:
+        try:
+            # 반환된 딕셔너리가 AIRecommendResult 규칙(candidate_id, score, reason)을 만족하는지 파싱
+            parsed = AIRecommendResult(**rec)
+            valid_results.append(parsed)
+        except Exception:
+            # 규칙에 맞지 않으면 무시
+            pass
+
+    # 점수 내림차순 정렬
+    valid_results.sort(key=lambda x: x.score, reverse=True)
+    return valid_results

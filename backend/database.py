@@ -20,6 +20,8 @@ connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite")
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
+    pool_pre_ping=True,  # 커넥션이 끊어졌는지 확인 후 재연결 (SSL connection closed 에러 방지)
+    pool_recycle=300,    # 5분마다 커넥션 재순환
 )
 
 # 각 요청마다 독립된 DB 세션을 생성합니다.

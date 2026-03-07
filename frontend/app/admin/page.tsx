@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken } from "@/lib/api";
-import type { UserReadAdmin, MatchingResponse, MatchStatus } from "@/types/user";
+import React, { useState, useEffect, useCallback } from "react";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAIRecommendations } from "@/lib/api";
+import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -204,6 +204,12 @@ export default function AdminPage() {
     const [creatingMatch, setCreatingMatch] = useState(false);
     const [filterMatchStatus, setFilterMatchStatus] = useState<"" | MatchStatus>("");
 
+    // AI 매칭 관련 상태
+    const [showAiModal, setShowAiModal] = useState(false);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiResults, setAiResults] = useState<AIRecommendResult[]>([]);
+    const [aiTargetUserId, setAiTargetUserId] = useState<string | null>(null);
+
     // ── 유저 목록 fetch ──────────────────────
     const fetchUsers = useCallback(async () => {
         setLoadingUsers(true);
@@ -288,21 +294,93 @@ export default function AdminPage() {
         });
     };
 
+    const checkSelectionMode = () => {
+        if (selectedUserIds.length < 2) return { canMatch: false, canAi: false, msg: "" };
+
+        const selectedUsers = users.filter((u) => selectedUserIds.includes(u.id));
+        const males = selectedUsers.filter((u) => u.gender === "MALE");
+        const females = selectedUsers.filter((u) => u.gender === "FEMALE");
+
+        if (males.length === 1 && females.length === 1) {
+            return { canMatch: true, canAi: true, msg: "1:1 매칭 또는 AI 추천" };
+        }
+        if ((males.length === 1 && females.length > 1) || (females.length === 1 && males.length > 1)) {
+            return { canMatch: false, canAi: true, msg: `1:N AI 추천 대기` };
+        }
+        return { canMatch: false, canAi: false, msg: "오직 1:1 이거나 1:N 이성만 선택해야 합니다." };
+    };
+
     const handleCreateMatch = async () => {
-        if (selectedUserIds.length !== 2) {
-            alert("매칭을 생성하려면 정확히 2명의 유저를 선택해야 합니다.");
+        const { canMatch } = checkSelectionMode();
+        if (!canMatch) {
+            alert("일반 매칭은 남성 1명과 여성 1명만 선택할 수 있습니다.");
             return;
         }
 
-        const selectedUsers = users.filter((u) => selectedUserIds.includes(u.id));
-        if (selectedUsers[0].gender === selectedUsers[1].gender) {
-            alert("남성 1명과 여성 1명만 선택할 수 있습니다.");
-            return;
-        }
         setCreatingMatch(true);
         try {
             await createMatching({ user_a_id: selectedUserIds[0], user_b_id: selectedUserIds[1] });
             alert("매칭이 생성되었습니다.");
+            setSelectedUserIds([]);
+            setActiveTab("MATCHINGS");
+            fetchMatchings();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "매칭 생성 실패");
+        } finally {
+            setCreatingMatch(false);
+        }
+    };
+
+    const handleGetAiRecommendations = async () => {
+        const { canAi } = checkSelectionMode();
+        if (!canAi) return;
+
+        const selectedUsers = users.filter((u) => selectedUserIds.includes(u.id));
+        const males = selectedUsers.filter((u) => u.gender === "MALE");
+        const females = selectedUsers.filter((u) => u.gender === "FEMALE");
+
+        let targetUserId = "";
+        let candidateIds: string[] = [];
+
+        if (males.length === 1) {
+            targetUserId = males[0].id;
+            candidateIds = females.map(u => u.id);
+        } else {
+            targetUserId = females[0].id;
+            candidateIds = males.map(u => u.id);
+        }
+
+        setAiTargetUserId(targetUserId);
+        setShowAiModal(true);
+        setAiLoading(true);
+        setAiResults([]);
+
+        try {
+            const results = await getAIRecommendations({
+                target_user_id: targetUserId,
+                candidate_user_ids: candidateIds
+            });
+            setAiResults(results);
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "AI 추천 처리 중 오류가 발생했습니다.");
+            setShowAiModal(false);
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    const handleCreateAIMatch = async (candidateId: string, score: number, reason: string) => {
+        if (!aiTargetUserId) return;
+        setCreatingMatch(true);
+        try {
+            await createMatching({
+                user_a_id: aiTargetUserId,
+                user_b_id: candidateId,
+                ai_score: score,
+                ai_reason: reason
+            });
+            alert("AI 추천 결과가 반영된 매칭이 생성되었습니다.");
+            setShowAiModal(false);
             setSelectedUserIds([]);
             setActiveTab("MATCHINGS");
             fetchMatchings();
@@ -472,15 +550,25 @@ export default function AdminPage() {
 
                             {selectedUserIds.length > 0 && (
                                 <div className="flex items-center gap-3 bg-blue-50 pl-4 py-1 pr-1 rounded-full border border-blue-100">
-                                    <span className="text-sm font-medium text-blue-700">{selectedUserIds.length}명 선택됨</span>
-                                    <Button
-                                        size="sm"
-                                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-full h-8 px-4"
-                                        disabled={selectedUserIds.length !== 2 || creatingMatch}
-                                        onClick={handleCreateMatch}
-                                    >
-                                        {creatingMatch ? "생성 중..." : "매칭 만들기"}
-                                    </Button>
+                                    <span className="text-sm font-medium text-blue-700">{selectedUserIds.length}명 선택됨 {checkSelectionMode().msg ? `(${checkSelectionMode().msg})` : ""}</span>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full h-8 px-4"
+                                            disabled={!checkSelectionMode().canAi || creatingMatch}
+                                            onClick={handleGetAiRecommendations}
+                                        >
+                                            ✨ AI 추천 받기
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-full h-8 px-4"
+                                            disabled={!checkSelectionMode().canMatch || creatingMatch}
+                                            onClick={handleCreateMatch}
+                                        >
+                                            {creatingMatch ? "생성 중..." : "일반 매칭 만들기"}
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -735,6 +823,71 @@ export default function AdminPage() {
                     </DialogContent>
                 </Dialog>
             )}
+
+            {/* AI 추천 모달 */}
+            <Dialog open={showAiModal} onOpenChange={setShowAiModal}>
+                <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
+                    <DialogHeader>
+                        <DialogTitle className="text-slate-900 flex items-center gap-2">
+                            ✨ Gemini AI 매칭 추천
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {aiLoading ? (
+                        <div className="py-12 flex flex-col items-center justify-center space-y-4">
+                            <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                            <p className="text-slate-600 font-medium animate-pulse">AI가 최적의 상대를 분석 중입니다...</p>
+                            <p className="text-slate-400 text-sm text-center">조건을 교차 검증하고 추천 멘트를 작성하고 있어요.<br />잠시만 기다려주세요.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4 pb-4">
+                            {aiResults.length === 0 ? (
+                                <p className="text-center text-slate-500 py-8">추천 결과가 없습니다.</p>
+                            ) : (
+                                aiResults.map((result) => {
+                                    const candidate = users.find(u => u.id === result.candidate_id);
+                                    if (!candidate) return null;
+
+                                    return (
+                                        <Card key={result.candidate_id} className="border-indigo-100 overflow-hidden shadow-sm">
+                                            <div className="bg-gradient-to-r from-indigo-50 to-white px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-white text-indigo-600 flex items-center justify-center text-sm shadow-sm">
+                                                        {candidate.gender === "MALE" ? "👨" : "👩"}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-slate-900">{candidate.name} <span className="text-xs font-normal text-slate-500 ml-1">{candidate.birth_year}년생</span></h4>
+                                                        <p className="text-xs text-slate-500">{candidate.job} · {candidate.contact}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-xs text-indigo-500 font-semibold mb-0.5">AI 적합도</span>
+                                                    <div className="bg-indigo-600 text-white font-bold text-lg px-2.5 py-0.5 rounded shadow-sm">
+                                                        {result.score}점
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <CardContent className="p-4 bg-white space-y-4">
+                                                <div className="bg-slate-50 rounded p-3 text-sm text-slate-700 leading-relaxed border border-slate-100">
+                                                    <p className="font-semibold text-slate-900 mb-1 text-xs">🤖 AI 추천 사유</p>
+                                                    {result.reason}
+                                                </div>
+                                                <Button
+                                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                                                    disabled={creatingMatch}
+                                                    onClick={() => handleCreateAIMatch(candidate.id, result.score, result.reason)}
+                                                >
+                                                    {creatingMatch ? "매칭 생성 중..." : "이 사람과 매칭 확정하기"}
+                                                </Button>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })
+                            )}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </main>
     );
 }

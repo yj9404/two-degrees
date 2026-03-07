@@ -121,6 +121,9 @@ class Matching(Base):
     user_a_status = Column(Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING)
     user_b_status = Column(Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING)
     
+    ai_score = Column(Integer, nullable=True)
+    ai_reason = Column(Text, nullable=True)
+    
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     __table_args__ = (

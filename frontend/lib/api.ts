@@ -12,6 +12,8 @@ import type {
     MatchingCreatePayload,
     MatchingUpdatePayload,
     MatchingResponse,
+    AIRecommendRequest,
+    AIRecommendResult,
 } from "@/types/user";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -195,6 +197,16 @@ export async function updateMatchingStatus(
 ): Promise<MatchingResponse> {
     return apiFetch(`/api/matchings/${matchingId}/status`, {
         method: "PUT",
+        body: JSON.stringify(payload),
+    });
+}
+
+/** POST /api/matchings/ai-recommend – AI 추천 (관리자) */
+export async function getAIRecommendations(
+    payload: AIRecommendRequest
+): Promise<AIRecommendResult[]> {
+    return apiFetch("/api/matchings/ai-recommend", {
+        method: "POST",
         body: JSON.stringify(payload),
     });
 }
