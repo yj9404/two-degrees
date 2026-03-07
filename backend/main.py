@@ -73,7 +73,8 @@ def verify_password(plain: str, hashed: str) -> bool:
 # 관리자 인증 의존성 (JWT)
 # ---------------------------------------------------------------------------
 
-JWT_SECRET = os.environ.get("JWT_SECRET", secrets.token_hex(32))
+FALLBACK_SECRET = os.environ.get("ADMIN_PASSWORD", "temp_static_secret_for_jwt")
+JWT_SECRET = os.environ.get("JWT_SECRET", FALLBACK_SECRET)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_MINUTES = 60 * 24  # 1일
 

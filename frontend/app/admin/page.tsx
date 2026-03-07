@@ -208,15 +208,12 @@ export default function AdminPage() {
     const fetchUsers = useCallback(async () => {
         setLoadingUsers(true);
         try {
-            const params: Parameters<typeof listUsers>[0] = {};
-            if (filterGender) params.gender = filterGender;
-            if (filterActive !== "") params.is_active = filterActive === "true";
-            const data = await listUsers(params);
+            const data = await listUsers({});
             setUsers(data);
         } finally {
             setLoadingUsers(false);
         }
-    }, [filterGender, filterActive]);
+    }, []);
 
     const fetchMatchings = useCallback(async () => {
         setLoadingMatchings(true);
@@ -287,20 +284,21 @@ export default function AdminPage() {
 
         setSelectedUserIds((prev) => {
             if (prev.includes(user.id)) return prev.filter((id) => id !== user.id);
-            if (prev.length >= 2) return prev;
-
-            const selectedUsers = users.filter((u) => prev.includes(u.id));
-            if (selectedUsers.some((u) => u.gender === user.gender)) {
-                alert("남성 1명과 여성 1명만 선택할 수 있습니다.");
-                return prev;
-            }
-
             return [...prev, user.id];
         });
     };
 
     const handleCreateMatch = async () => {
-        if (selectedUserIds.length !== 2) return;
+        if (selectedUserIds.length !== 2) {
+            alert("매칭을 생성하려면 정확히 2명의 유저를 선택해야 합니다.");
+            return;
+        }
+
+        const selectedUsers = users.filter((u) => selectedUserIds.includes(u.id));
+        if (selectedUsers[0].gender === selectedUsers[1].gender) {
+            alert("남성 1명과 여성 1명만 선택할 수 있습니다.");
+            return;
+        }
         setCreatingMatch(true);
         try {
             await createMatching({ user_a_id: selectedUserIds[0], user_b_id: selectedUserIds[1] });
@@ -376,10 +374,18 @@ export default function AdminPage() {
     // ─────────────────────────────────────────
     // 관리자 대시보드
     // ─────────────────────────────────────────
-    const activeUsers = users.filter((u) => u.is_active);
+    const activeUsers = users.filter((u: UserReadAdmin) => u.is_active);
     const activeCount = activeUsers.length;
-    const maleCount = activeUsers.filter((u) => u.gender === "MALE").length;
-    const femaleCount = activeUsers.filter((u) => u.gender === "FEMALE").length;
+    const maleCount = activeUsers.filter((u: UserReadAdmin) => u.gender === "MALE").length;
+    const femaleCount = activeUsers.filter((u: UserReadAdmin) => u.gender === "FEMALE").length;
+
+    // 프론트엔드 단에서 리스트 필터링 수행
+    const filteredUsers = users.filter((u: UserReadAdmin) => {
+        if (filterGender && u.gender !== filterGender) return false;
+        if (filterActive === "true" && !u.is_active) return false;
+        if (filterActive === "false" && u.is_active) return false;
+        return true;
+    });
 
     return (
         <main className="min-h-screen bg-slate-50 py-8 px-4">
@@ -461,7 +467,7 @@ export default function AdminPage() {
                                 <Button size="sm" variant="outline" onClick={fetchUsers} disabled={loadingUsers}>
                                     {loadingUsers ? "로딩 중..." : "새로고침"}
                                 </Button>
-                                <span className="text-slate-400 text-sm">{users.length}명</span>
+                                <span className="text-slate-400 text-sm">{filteredUsers.length}명</span>
                             </div>
 
                             {selectedUserIds.length > 0 && (
@@ -480,11 +486,11 @@ export default function AdminPage() {
                         </div>
 
                         {/* 유저 목록 */}
-                        {users.length === 0 && !loadingUsers ? (
+                        {filteredUsers.length === 0 && !loadingUsers ? (
                             <p className="text-center text-slate-400 py-16">가입자가 없습니다.</p>
                         ) : (
                             <div className="space-y-3">
-                                {users.map((user) => {
+                                {filteredUsers.map((user) => {
                                     const cardBgClass = user.gender === "MALE"
                                         ? "bg-blue-50/20 hover:bg-blue-50/60 border-blue-100"
                                         : "bg-pink-50/20 hover:bg-pink-50/60 border-pink-100";
@@ -508,7 +514,7 @@ export default function AdminPage() {
                                                             className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                                             checked={selectedUserIds.includes(user.id)}
                                                             onChange={() => handleSelectUser(user)}
-                                                            disabled={!user.is_active || (!selectedUserIds.includes(user.id) && selectedUserIds.length >= 2)}
+                                                            disabled={!user.is_active}
                                                         />
                                                     </div>
 
