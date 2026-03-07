@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminPassword } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken } from "@/lib/api";
 import type { UserReadAdmin, MatchingResponse, MatchStatus } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -243,8 +243,8 @@ export default function AdminPage() {
         setAuthLoading(true);
         setAuthError("");
         try {
-            await adminAuth(pw);
-            setAdminPassword(pw);
+            const res = await adminAuth(pw);
+            setAdminToken(res.access_token);
             setAuthed(true);
         } catch (err) {
             setAuthError(err instanceof Error ? err.message : "인증 실패");
