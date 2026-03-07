@@ -104,6 +104,8 @@ export interface UserStatsResponse {
 export interface MatchingCreatePayload {
     user_a_id: string;
     user_b_id: string;
+    ai_score?: number;
+    ai_reason?: string;
 }
 
 /** 매칭 상태 업데이트 페이로드 */
@@ -119,7 +121,22 @@ export interface MatchingResponse {
     user_b_id: string;
     user_a_status: MatchStatus;
     user_b_status: MatchStatus;
+    ai_score?: number;
+    ai_reason?: string;
     created_at: string;
     user_a_info: UserReadAdmin;
     user_b_info: UserReadAdmin;
+}
+
+/** AI 매칭 추천 요청 페이로드 */
+export interface AIRecommendRequest {
+    target_user_id: string;
+    candidate_user_ids: string[];
+}
+
+/** AI 매칭 추천 결과 객체 */
+export interface AIRecommendResult {
+    candidate_id: string;
+    score: number;
+    reason: string;
 }

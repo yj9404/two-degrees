@@ -182,6 +182,8 @@ class MatchingCreate(BaseModel):
     """POST /api/matchings 요청 바디"""
     user_a_id: str
     user_b_id: str
+    ai_score: Optional[int] = Field(None, ge=0, le=100)
+    ai_reason: Optional[str] = None
 
 
 class MatchingUpdate(BaseModel):
@@ -197,6 +199,8 @@ class MatchingResponse(BaseModel):
     user_b_id: str
     user_a_status: MatchStatus
     user_b_status: MatchStatus
+    ai_score: Optional[int] = None
+    ai_reason: Optional[str] = None
     created_at: datetime
 
     # 관리자 확인용 간략한 유저 정보 포함
@@ -204,3 +208,20 @@ class MatchingResponse(BaseModel):
     user_b_info: UserReadAdmin
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------------------------
+# AI Recommendation 스키마
+# ---------------------------------------------------------------------------
+
+class AIRecommendRequest(BaseModel):
+    """POST /api/matchings/ai-recommend 요청 바디"""
+    target_user_id: str
+    candidate_user_ids: List[str]
+
+
+class AIRecommendResult(BaseModel):
+    """AI 추천 개별 결과"""
+    candidate_id: str
+    score: int = Field(..., ge=0, le=100)
+    reason: str
