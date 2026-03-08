@@ -703,12 +703,14 @@ def ai_recommend_matchings(
     target_dict = UserRead.model_validate(target_user).model_dump(mode='json')
     target_dict.pop("name", None)
     target_dict.pop("referrer_name", None)
+    target_dict.pop("photo_urls", None)
 
     candidates_dict_list = []
     for c in candidates:
         c_dict = UserRead.model_validate(c).model_dump(mode='json')
         c_dict.pop("name", None)
         c_dict.pop("referrer_name", None)
+        c_dict.pop("photo_urls", None)
         candidates_dict_list.append(c_dict)
 
     # 5. Gemini API 연동 모듈 호출
