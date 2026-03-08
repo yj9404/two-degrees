@@ -38,6 +38,10 @@ function UserDetailDialog({
     const [downloading, setDownloading] = useState(false);
     const [zoomedPhotoIndex, setZoomedPhotoIndex] = useState<number | null>(null);
 
+    useEffect(() => {
+        setZoomedPhotoIndex(null);
+    }, [user?.id]);
+
     if (!user) return null;
 
     const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -186,61 +190,56 @@ function UserDetailDialog({
             </DialogContent>
             </Dialog>
 
-            {/* 확대된 사진 오버레이 */}
+            {/* 확대된 사진 다이얼로그 */}
             {zoomedPhotoIndex !== null && user.photo_urls && (
-                <div 
-                    className="fixed inset-0 z-[100] bg-black/95 flex flex-col justify-center items-center select-none"
-                    onClick={() => setZoomedPhotoIndex(null)}
-                >
-                    {/* 닫기 버튼 */}
-                    <button 
-                        className="absolute top-4 right-4 p-2 text-white/70 hover:text-white z-50 bg-black/50 rounded-full"
-                        onClick={(e) => { e.stopPropagation(); setZoomedPhotoIndex(null); }}
+                <Dialog open={true} onOpenChange={(open: boolean) => { if (!open) setZoomedPhotoIndex(null); }}>
+                    <DialogContent 
+                        className="max-w-3xl bg-slate-900 border-none shadow-lg p-6 flex flex-col items-center [&>button]:text-white/70 [&>button:hover]:text-white"
+                        aria-describedby={undefined}
                     >
-                        <X className="w-6 h-6" />
-                    </button>
-                    
-                    {/* 상단 카운터 */}
-                    <div className="absolute top-6 left-0 right-0 text-center text-white/70 font-medium z-40 pointer-events-none text-sm tracking-widest">
-                        {zoomedPhotoIndex + 1} / {user.photo_urls.length}
-                    </div>
+                        <DialogTitle className="sr-only">사진 확대</DialogTitle>
+                        
+                        <div className="w-full text-center text-white/50 font-medium text-sm tracking-widest mb-4">
+                            {zoomedPhotoIndex + 1} / {user.photo_urls.length}
+                        </div>
 
-                    <div className="relative w-full h-full flex items-center justify-center p-4">
-                        {/* 확대된 이미지 */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img 
-                            src={user.photo_urls[zoomedPhotoIndex]} 
-                            alt="확대 이미지" 
-                            className="max-w-full max-h-full object-contain cursor-default"
-                            onClick={(e) => e.stopPropagation()}
-                            key={zoomedPhotoIndex}
-                        />
+                        <div className="relative w-full flex items-center justify-center bg-black/50 rounded-lg overflow-hidden p-2 min-h-[50vh]">
+                            {/* 확대된 이미지 */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                                src={user.photo_urls[zoomedPhotoIndex]} 
+                                alt="확대 이미지" 
+                                className="max-w-full max-h-[60vh] object-contain rounded-md select-none"
+                            />
 
-                        {/* 좌우 이동 버튼 */}
-                        {user.photo_urls.length > 1 && (
-                            <>
-                                <button
-                                    className="absolute left-4 p-3 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/50"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setZoomedPhotoIndex(zoomedPhotoIndex === 0 ? user.photo_urls!.length - 1 : zoomedPhotoIndex - 1);
-                                    }}
-                                >
-                                    <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
-                                </button>
-                                <button
-                                    className="absolute right-4 p-3 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/50"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setZoomedPhotoIndex(zoomedPhotoIndex === user.photo_urls!.length - 1 ? 0 : zoomedPhotoIndex + 1);
-                                    }}
-                                >
-                                    <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
+                            {/* 좌우 이동 버튼 */}
+                            {user.photo_urls.length > 1 && (
+                                <>
+                                    <button
+                                        className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 p-2 sm:p-3 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors z-50 focus:outline-none"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setZoomedPhotoIndex(zoomedPhotoIndex === 0 ? user.photo_urls!.length - 1 : zoomedPhotoIndex - 1);
+                                        }}
+                                    >
+                                        <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+                                    </button>
+                                    <button
+                                        className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-2 sm:p-3 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors z-50 focus:outline-none"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setZoomedPhotoIndex(zoomedPhotoIndex === user.photo_urls!.length - 1 ? 0 : zoomedPhotoIndex + 1);
+                                        }}
+                                    >
+                                        <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
             )}
         </>
     );
