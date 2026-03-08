@@ -358,6 +358,7 @@ export default function AdminPage() {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [filterGender, setFilterGender] = useState<"" | "MALE" | "FEMALE">("");
     const [filterActive, setFilterActive] = useState<"" | "true" | "false">("");
+    const [filterName, setFilterName] = useState("");
     const [selectedUser, setSelectedUser] = useState<UserReadAdmin | null>(null);
     const [toDeleteId, setToDeleteId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
@@ -457,6 +458,20 @@ export default function AdminPage() {
             if (prev.includes(user.id)) return prev.filter((id) => id !== user.id);
             return [...prev, user.id];
         });
+    };
+
+    const handleSelectAllMale = () => {
+        const maleIds = filteredUsers.filter((u: UserReadAdmin) => u.gender === "MALE" && u.is_active).map((u: UserReadAdmin) => u.id);
+        setSelectedUserIds((prev: string[]) => Array.from(new Set([...prev, ...maleIds])));
+    };
+
+    const handleSelectAllFemale = () => {
+        const femaleIds = filteredUsers.filter((u: UserReadAdmin) => u.gender === "FEMALE" && u.is_active).map((u: UserReadAdmin) => u.id);
+        setSelectedUserIds((prev: string[]) => Array.from(new Set([...prev, ...femaleIds])));
+    };
+
+    const handleDeselectAll = () => {
+        setSelectedUserIds([]);
     };
 
     const checkSelectionMode = () => {
@@ -638,6 +653,7 @@ export default function AdminPage() {
         if (filterGender && u.gender !== filterGender) return false;
         if (filterActive === "true" && !u.is_active) return false;
         if (filterActive === "false" && u.is_active) return false;
+        if (filterName && !u.name.toLowerCase().includes(filterName.toLowerCase())) return false;
         return true;
     });
 
@@ -700,6 +716,13 @@ export default function AdminPage() {
                         {/* 필터 및 매칭 생성 액션 */}
                         <div className="flex items-center justify-between flex-wrap gap-4">
                             <div className="flex flex-wrap gap-3 items-center">
+                                <Input
+                                    type="text"
+                                    placeholder="이름 검색"
+                                    value={filterName}
+                                    onChange={(e) => setFilterName(e.target.value)}
+                                    className="w-32 h-9 text-sm"
+                                />
                                 <select
                                     value={filterGender}
                                     onChange={(e) => setFilterGender(e.target.value as typeof filterGender)}
@@ -724,6 +747,16 @@ export default function AdminPage() {
                                 <span className="text-slate-400 text-sm">{filteredUsers.length}명</span>
                             </div>
 
+                            <div className="flex flex-wrap gap-2">
+                                <Button size="sm" variant="secondary" onClick={handleSelectAllMale} className="bg-slate-100 hover:bg-slate-200 text-slate-700">남성 전체선택</Button>
+                                <Button size="sm" variant="secondary" onClick={handleSelectAllFemale} className="bg-slate-100 hover:bg-slate-200 text-slate-700">여성 전체선택</Button>
+                                {selectedUserIds.length > 0 && (
+                                    <Button size="sm" variant="outline" onClick={handleDeselectAll} className="text-red-600 hover:text-red-700 hover:bg-red-50">선택 해제</Button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between flex-wrap gap-4">
                             {selectedUserIds.length > 0 && (
                                 <div className="flex items-center gap-3 bg-blue-50 pl-4 py-1 pr-1 rounded-full border border-blue-100">
                                     <span className="text-sm font-medium text-blue-700">{selectedUserIds.length}명 선택됨 {checkSelectionMode().msg ? `(${checkSelectionMode().msg})` : ""}</span>
