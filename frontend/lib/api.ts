@@ -28,6 +28,11 @@ export function setAdminToken(token: string) {
     adminToken = token;
 }
 
+/** 관리자 인증 토큰 가져오기 */
+export function getAdminToken() {
+    return adminToken;
+}
+
 /** 공통 fetch 헬퍼 */
 async function apiFetch<T>(
     path: string,

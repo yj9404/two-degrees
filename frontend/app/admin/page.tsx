@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAIRecommendations, deleteMatching, markMatchingContactShared } from "@/lib/api";
-import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon } from "lucide-react";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, deleteMatching, markMatchingContactShared } from "@/lib/api";
+import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +35,13 @@ function UserDetailDialog({
     user: UserReadAdmin | null;
     onClose: () => void;
 }) {
-    if (!user) return null;
+    const [zoomedPhotoIndex, setZoomedPhotoIndex] = useState<number | null>(null);
 
+    useEffect(() => {
+        setZoomedPhotoIndex(null);
+    }, [user?.id]);
+
+    if (!user) return null;
     const rows: [string, React.ReactNode][] = [
         ["이름", user.name],
         ["성별", GENDER_LABEL[user.gender] ?? user.gender],
@@ -78,59 +83,118 @@ function UserDetailDialog({
     ];
 
     return (
-        <Dialog open onOpenChange={onClose}>
-            <DialogContent
-                className="max-w-md max-h-[80vh] overflow-y-auto"
-                aria-describedby={undefined}
-            >
-                <DialogHeader>
-                    <DialogTitle className="text-slate-900">
-                        {user.name}{" "}
-                        <span className="text-slate-400 text-sm font-normal">({user.id.slice(0, 8)}…)</span>
-                    </DialogTitle>
-                </DialogHeader>
-                <dl className="space-y-3 py-2">
-                    {rows.map(([label, value]) => (
-                        <div key={label} className="grid grid-cols-[7rem_1fr] gap-2 text-sm">
-                            <dt className="text-slate-500 font-medium shrink-0">{label}</dt>
-                            <dd className="text-slate-900 break-words">{value ?? "-"}</dd>
-                        </div>
-                    ))}
-                </dl>
+        <>
+            <Dialog open onOpenChange={onClose}>
+                <DialogContent
+                    className="max-w-md max-h-[80vh] overflow-y-auto"
+                    aria-describedby={undefined}
+                >
+                    <DialogHeader>
+                        <DialogTitle className="text-slate-900">
+                            {user.name}{" "}
+                            <span className="text-slate-400 text-sm font-normal">({user.id.slice(0, 8)}…)</span>
+                        </DialogTitle>
+                    </DialogHeader>
+                    <dl className="space-y-3 py-2">
+                        {rows.map(([label, value]) => (
+                            <div key={label} className="grid grid-cols-[7rem_1fr] gap-2 text-sm">
+                                <dt className="text-slate-500 font-medium shrink-0">{label}</dt>
+                                <dd className="text-slate-900 break-words">{value ?? "-"}</dd>
+                            </div>
+                        ))}
+                    </dl>
 
-                {/* 사진 갤러리 */}
-                {user.photo_urls && user.photo_urls.length > 0 && (
-                    <div className="space-y-2 py-2">
-                        <p className="text-slate-500 font-medium text-sm">
-                            프로필 사진 ({user.photo_urls.length}장)
-                        </p>
-                        <div className="grid grid-cols-3 gap-2">
-                            {user.photo_urls.map((url, idx) => (
-                                <div key={url} className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                        src={url}
-                                        alt={`${user.name} 사진 ${idx + 1}`}
-                                        className="w-full h-full object-cover"
-                                    />
-                                    {idx === 0 && (
-                                        <span className="absolute bottom-1 left-1 text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded">
-                                            대표
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
+                    {/* 사진 갤러리 */}
+                    {user.photo_urls && user.photo_urls.length > 0 && (
+                        <div className="space-y-2 py-2">
+                            <p className="text-slate-500 font-medium text-sm">
+                                프로필 사진 ({user.photo_urls.length}장)
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {user.photo_urls.map((url, idx) => (
+                                    <div
+                                        key={url}
+                                        className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 cursor-pointer group"
+                                        onClick={() => setZoomedPhotoIndex(idx)}
+                                    >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={url}
+                                            alt={`${user.name} 사진 ${idx + 1}`}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        />
+                                        {idx === 0 && (
+                                            <span className="absolute bottom-1 left-1 text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded z-10">
+                                                대표
+                                            </span>
+                                        )}
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
+                    )}
+
+                    <div className="flex flex-col gap-2 pt-2">
+                        <Button variant="outline" className="w-full" onClick={onClose}>
+                            닫기
+                        </Button>
                     </div>
-                )}
+                </DialogContent>
+            </Dialog>
 
-                <div className="flex flex-col gap-2 pt-2">
-                    <Button variant="outline" className="w-full" onClick={onClose}>
-                        닫기
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+            {/* 확대된 사진 다이얼로그 */}
+            {zoomedPhotoIndex !== null && user.photo_urls && (
+                <Dialog open={true} onOpenChange={(open: boolean) => { if (!open) setZoomedPhotoIndex(null); }}>
+                    <DialogContent
+                        className="max-w-3xl bg-slate-900 border-none shadow-lg p-6 flex flex-col items-center [&>button]:text-white/70 [&>button:hover]:text-white"
+                        aria-describedby={undefined}
+                    >
+                        <DialogTitle className="sr-only">사진 확대</DialogTitle>
+
+                        <div className="w-full text-center text-white/50 font-medium text-sm tracking-widest mb-4">
+                            {zoomedPhotoIndex + 1} / {user.photo_urls.length}
+                        </div>
+
+                        <div className="relative w-full flex items-center justify-center bg-black/50 rounded-lg overflow-hidden p-2 min-h-[50vh]">
+                            {/* 확대된 이미지 */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={user.photo_urls[zoomedPhotoIndex]}
+                                alt="확대 이미지"
+                                className="max-w-full max-h-[60vh] object-contain rounded-md select-none"
+                            />
+
+                            {/* 좌우 이동 버튼 */}
+                            {user.photo_urls.length > 1 && (
+                                <>
+                                    <button
+                                        className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 p-2 sm:p-3 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors z-50 focus:outline-none"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setZoomedPhotoIndex(zoomedPhotoIndex === 0 ? user.photo_urls!.length - 1 : zoomedPhotoIndex - 1);
+                                        }}
+                                    >
+                                        <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+                                    </button>
+                                    <button
+                                        className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-2 sm:p-3 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors z-50 focus:outline-none"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setZoomedPhotoIndex(zoomedPhotoIndex === user.photo_urls!.length - 1 ? 0 : zoomedPhotoIndex + 1);
+                                        }}
+                                    >
+                                        <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
+        </>
     );
 }
 
@@ -393,6 +457,8 @@ function UserCard({
     onToggleActive: (user: UserReadAdmin) => void;
     onDelete: () => void;
 }) {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
     const cardBgClass = user.gender === "MALE"
         ? "bg-blue-50/20 hover:bg-blue-50/60 border-blue-100"
         : "bg-pink-50/20 hover:bg-pink-50/60 border-pink-100";
@@ -420,8 +486,21 @@ function UserCard({
                     </div>
 
                     {/* 아바타 */}
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden">
-                        {user.gender === "MALE" ? "👨" : "👩"}
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden relative">
+                        {user.photo_urls && user.photo_urls.length > 0 ? (
+                            <img
+                                src={user.photo_urls[0]}
+                                alt={`${user.name} 썸네일`}
+                                className="w-full h-full object-cover"
+                                onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                                    // 이미지 로드 실패 시 이모지로 폴백
+                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.parentElement!.innerText = user.gender === "MALE" ? "👨" : "👩";
+                                }}
+                            />
+                        ) : (
+                            user.gender === "MALE" ? "👨" : "👩"
+                        )}
                     </div>
 
                     {/* 기본 정보 */}
@@ -488,6 +567,7 @@ export default function AdminPage() {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [filterGender, setFilterGender] = useState<"" | "MALE" | "FEMALE">("");
     const [filterActive, setFilterActive] = useState<"" | "true" | "false">("");
+    const [filterName, setFilterName] = useState("");
     const [selectedUser, setSelectedUser] = useState<UserReadAdmin | null>(null);
     const [toDeleteId, setToDeleteId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
@@ -589,6 +669,20 @@ export default function AdminPage() {
             if (prev.includes(user.id)) return prev.filter((id) => id !== user.id);
             return [...prev, user.id];
         });
+    };
+
+    const handleSelectAllMale = () => {
+        const maleIds = filteredUsers.filter((u: UserReadAdmin) => u.gender === "MALE" && u.is_active).map((u: UserReadAdmin) => u.id);
+        setSelectedUserIds((prev: string[]) => Array.from(new Set([...prev, ...maleIds])));
+    };
+
+    const handleSelectAllFemale = () => {
+        const femaleIds = filteredUsers.filter((u: UserReadAdmin) => u.gender === "FEMALE" && u.is_active).map((u: UserReadAdmin) => u.id);
+        setSelectedUserIds((prev: string[]) => Array.from(new Set([...prev, ...femaleIds])));
+    };
+
+    const handleDeselectAll = () => {
+        setSelectedUserIds([]);
     };
 
     const checkSelectionMode = () => {
@@ -770,6 +864,7 @@ export default function AdminPage() {
         if (filterGender && u.gender !== filterGender) return false;
         if (filterActive === "true" && !u.is_active) return false;
         if (filterActive === "false" && u.is_active) return false;
+        if (filterName && !u.name.toLowerCase().includes(filterName.toLowerCase())) return false;
         return true;
     });
 
@@ -832,6 +927,13 @@ export default function AdminPage() {
                         {/* 필터 및 매칭 생성 액션 */}
                         <div className="flex items-center justify-between flex-wrap gap-4">
                             <div className="flex flex-wrap gap-3 items-center">
+                                <Input
+                                    type="text"
+                                    placeholder="이름 검색"
+                                    value={filterName}
+                                    onChange={(e) => setFilterName(e.target.value)}
+                                    className="w-32 h-9 text-sm"
+                                />
                                 <select
                                     value={filterGender}
                                     onChange={(e) => setFilterGender(e.target.value as typeof filterGender)}
@@ -856,6 +958,16 @@ export default function AdminPage() {
                                 <span className="text-slate-400 text-sm">{filteredUsers.length}명</span>
                             </div>
 
+                            <div className="flex flex-wrap gap-2">
+                                <Button size="sm" variant="secondary" onClick={handleSelectAllMale} className="bg-slate-100 hover:bg-slate-200 text-slate-700">남성 전체선택</Button>
+                                <Button size="sm" variant="secondary" onClick={handleSelectAllFemale} className="bg-slate-100 hover:bg-slate-200 text-slate-700">여성 전체선택</Button>
+                                {selectedUserIds.length > 0 && (
+                                    <Button size="sm" variant="outline" onClick={handleDeselectAll} className="text-red-600 hover:text-red-700 hover:bg-red-50">선택 해제</Button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between flex-wrap gap-4">
                             {selectedUserIds.length > 0 && (
                                 <div className="flex items-center gap-3 bg-blue-50 pl-4 py-1 pr-1 rounded-full border border-blue-100">
                                     <span className="text-sm font-medium text-blue-700">{selectedUserIds.length}명 선택됨 {checkSelectionMode().msg ? `(${checkSelectionMode().msg})` : ""}</span>
