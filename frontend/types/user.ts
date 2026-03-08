@@ -4,7 +4,7 @@
 export type Gender = "MALE" | "FEMALE";
 export type SmokingStatus = "NON_SMOKER" | "SMOKER";
 export type DrinkingStatus = "NON_DRINKER" | "SOCIAL_DRINKER" | "DRINKER";
-export type MatchStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+export type MatchStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED";
 
 /** POST /api/users 요청 페이로드 */
 export interface UserCreatePayload {
@@ -124,6 +124,10 @@ export interface MatchingResponse {
     ai_score?: number;
     ai_reason?: string;
     created_at: string;
+    user_a_token?: string;
+    user_b_token?: string;
+    expires_at?: string;
+    is_contact_shared: boolean;
     user_a_info: UserReadAdmin;
     user_b_info: UserReadAdmin;
 }
@@ -139,4 +143,27 @@ export interface AIRecommendResult {
     candidate_id: string;
     score: number;
     reason: string;
+}
+
+/** 공유 프로필 정보 */
+export interface SharedProfileRead {
+    age: number;
+    job: string;
+    height?: number;
+    active_area?: string;
+    education?: string;
+    workplace?: string;
+    mbti?: string;
+    religion?: string;
+    smoking_status?: SmokingStatus;
+    drinking_status?: DrinkingStatus;
+    exercise?: string;
+    hobbies?: string;
+    ai_reason?: string;
+    photo_urls: string[];
+}
+
+/** 매칭 응담 요청 */
+export interface MatchRespondRequest {
+    status: MatchStatus;
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAIRecommendations, deleteMatching } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAIRecommendations, deleteMatching, markMatchingContactShared } from "@/lib/api";
+import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon } from "lucide-react";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -128,6 +129,247 @@ function UserDetailDialog({
                         닫기
                     </Button>
                 </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ─────────────────────────────────────────────
+// 매칭 상세 다이얼로그
+// ─────────────────────────────────────────────
+function MatchingDetailDialog({
+    matching,
+    onClose,
+    onUpdate,
+}: {
+    matching: MatchingResponse | null;
+    onClose: () => void;
+    onUpdate: (updated: MatchingResponse) => void;
+}) {
+    if (!matching) return null;
+
+    const isSuccess = matching.user_a_status === "ACCEPTED" && matching.user_b_status === "ACCEPTED";
+    const isFailed = matching.user_a_status === "REJECTED" || matching.user_b_status === "REJECTED";
+    const isPending = !isSuccess && !isFailed;
+
+    // 만료 여부 체크 (프론트엔드 기준)
+    const isExpired = matching.expires_at ? new Date(matching.expires_at) < new Date() : false;
+
+    const [updatingContact, setUpdatingContact] = useState(false);
+
+    const copyToClipboard = async (text: string, label: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            alert(`${label} 메시지가 복사되었습니다.`);
+        } catch (err) {
+            alert("복사에 실패했습니다.");
+        }
+    };
+
+    const handleMarkContactShared = async () => {
+        if (!matching) return;
+        setUpdatingContact(true);
+        try {
+            const updated = await markMatchingContactShared(matching.id);
+            onUpdate(updated);
+            alert("연락처 전달 완료 상태로 업데이트되었습니다.");
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "업데이트 실패");
+        } finally {
+            setUpdatingContact(false);
+        }
+    };
+
+    const getBaseUrl = () => {
+        // 배포 환경에서는 .env.local 등에 설정된 도메인을 우선 사용하고, 없으면 현재 접속 주소 사용
+        const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
+        if (envUrl) return envUrl.replace(/\/$/, ""); // 트레일링 슬래시 제거
+
+        if (typeof window !== "undefined") {
+            return window.location.origin;
+        }
+        return "";
+    };
+
+    const renderPendingUI = () => {
+        const baseUrl = getBaseUrl();
+        const pendingMsg = (token: string) =>
+            `안녕하세요, TwoDegrees 관리자입니다. 어울리는 인연을 찾게 되어 매칭 제안을 드립니다. 아래 링크를 통해 상대방의 프로필을 확인해 주세요. (링크는 프라이버시 보호를 위해 24시간 후 만료되며 링크가 노출되지 않도록 주의해주세요.)\n🔗 ${baseUrl}/p/${token}\n* 두 분 모두 '수락'을 누르신 경우에만 연락처가 교환됩니다.`;
+
+        return (
+            <div className="space-y-4 py-2">
+                <div className="flex flex-col gap-3">
+                    <p className="text-sm font-semibold text-slate-700">제안 메시지 복사</p>
+                    <div className="grid grid-cols-2 gap-3">
+                        <Button
+                            variant="outline"
+                            className="flex flex-col h-auto py-3 gap-1 border-blue-200 bg-blue-50/30 hover:bg-blue-50"
+                            onClick={() => copyToClipboard(pendingMsg(matching.user_a_token || ""), `${matching.user_a_info.name}(A)용`)}
+                        >
+                            <div className="flex items-center gap-1.5 text-blue-600 font-bold mb-1">
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>{matching.user_a_info.name} (A)</span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-normal">남성용 링크 포함</span>
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="flex flex-col h-auto py-3 gap-1 border-pink-200 bg-pink-50/30 hover:bg-pink-50"
+                            onClick={() => copyToClipboard(pendingMsg(matching.user_b_token || ""), `${matching.user_b_info.name}(B)용`)}
+                        >
+                            <div className="flex items-center gap-1.5 text-pink-600 font-bold mb-1">
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>{matching.user_b_info.name} (B)</span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-normal">여성용 링크 포함</span>
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderFailedUI = () => {
+        const failedMsg = "안녕하세요, TwoDegrees 관리자입니다. 아쉽게도 상대방이 매칭을 진행하지 않기로 결정했거나 링크 유효시간이 경과하여, 이번 매칭 건은 시스템에 의해 자동 종료되었습니다. 조만간 더 좋은 인연으로 다시 제안드리겠습니다. 다음 매칭을 기대해 주세요!";
+        return (
+            <div className="space-y-4 py-2">
+                <div className="p-4 bg-red-50 rounded-lg border border-red-100 flex items-start gap-3">
+                    <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-700 leading-relaxed">
+                        매칭이 성사되지 않았습니다. {isExpired ? "(기한 만료)" : "(거절됨)"}
+                    </p>
+                </div>
+                <Button
+                    variant="outline"
+                    className="w-full h-12 gap-2 border-slate-200 hover:bg-slate-50"
+                    onClick={() => copyToClipboard(failedMsg, "거절 안내")}
+                >
+                    <Copy className="w-4 h-4" />
+                    거절/실패 안내 메시지 복사
+                </Button>
+            </div>
+        );
+    };
+
+    const renderSuccessUI = () => {
+        const successMsg = (targetName: string, targetContact: string) =>
+            `🎉 축하드립니다! 두 분 모두 수락하셔서 매칭이 최종 성사되었습니다.\n👤 이름: ${targetName}\n📞 연락처: ${targetContact}\n* 두 분의 TwoDegrees 프로필은 잠시 휴식(비활성화) 처리되며, 추후 언제든지 다시 활성화하실 수 있습니다. 좋은 만남 응원합니다!`;
+
+        return (
+            <div className="space-y-4 py-2">
+                <div className="p-4 bg-green-50 rounded-lg border border-green-100 flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                    <p className="text-sm text-green-700 font-medium">매칭 성공! 서로의 연락처를 전달해 주세요.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                    <Button
+                        variant="outline"
+                        className="h-auto py-4 justify-start gap-3 border-blue-200 hover:bg-blue-50"
+                        onClick={() => copyToClipboard(successMsg(matching.user_b_info.name, matching.user_b_info.contact), `${matching.user_a_info.name}(A)에게 보낼`)}
+                    >
+                        <MessageSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                        <div className="text-left">
+                            <p className="text-xs font-bold text-slate-900">{matching.user_a_info.name}(A)에게 전달할 메시지</p>
+                            <p className="text-[10px] text-slate-500">상대방({matching.user_b_info.name})의 정보 포함</p>
+                        </div>
+                    </Button>
+                    <Button
+                        variant="outline"
+                        className="h-auto py-4 justify-start gap-3 border-pink-200 hover:bg-pink-50"
+                        onClick={() => copyToClipboard(successMsg(matching.user_a_info.name, matching.user_a_info.contact), `${matching.user_b_info.name}(B)에게 보낼`)}
+                    >
+                        <MessageSquare className="w-4 h-4 text-pink-600 shrink-0" />
+                        <div className="text-left">
+                            <p className="text-xs font-bold text-slate-900">{matching.user_b_info.name}(B)에게 전달할 메시지</p>
+                            <p className="text-[10px] text-slate-500">상대방({matching.user_a_info.name})의 정보 포함</p>
+                        </div>
+                    </Button>
+                </div>
+
+                <div className="pt-2">
+                    <Button
+                        className={`w-full h-11 font-bold transition-all ${matching.is_contact_shared
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            : "bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                            }`}
+                        onClick={handleMarkContactShared}
+                        disabled={updatingContact || matching.is_contact_shared}
+                    >
+                        {matching.is_contact_shared ? (
+                            <>
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                연락처 전달 완료됨
+                            </>
+                        ) : (
+                            updatingContact ? "처리 중..." : "연락처 전달 완료 처리"
+                        )}
+                    </Button>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <Dialog open onOpenChange={onClose}>
+            <DialogContent className="max-w-md" aria-describedby={undefined}>
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        {isSuccess ? "🎉 매칭 성사 상세" : "매칭 상세 정보"}
+                        <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {matching.id.slice(0, 8)}
+                        </span>
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-6 pt-2">
+                    {/* 상단 상태 요약 */}
+                    <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div className="text-center flex-1">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">USER A ({matching.user_a_info.gender === "MALE" ? "남" : "여"})</p>
+                            <p className="text-sm font-bold text-slate-900">{matching.user_a_info.name}</p>
+                            <p className={`text-[10px] font-bold mt-1 ${matching.user_a_status === "ACCEPTED" ? "text-green-600" : matching.user_a_status === "REJECTED" ? "text-red-500" : "text-amber-500"}`}>{matching.user_a_status}</p>
+                        </div>
+                        <div className="px-4 text-slate-300">
+                            <span className="text-xl">↔</span>
+                        </div>
+                        <div className="text-center flex-1">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">USER B ({matching.user_b_info.gender === "MALE" ? "남" : "여"})</p>
+                            <p className="text-sm font-bold text-slate-900">{matching.user_b_info.name}</p>
+                            <p className={`text-[10px] font-bold mt-1 ${matching.user_b_status === "ACCEPTED" ? "text-green-600" : matching.user_b_status === "REJECTED" ? "text-red-500" : "text-amber-500"}`}>{matching.user_b_status}</p>
+                        </div>
+                    </div>
+
+                    {/* AI 추천 통찰 */}
+                    {matching.ai_reason && (
+                        <div className="p-3 bg-indigo-50/50 rounded-lg border border-indigo-100">
+                            <p className="text-[10px] font-bold text-indigo-600 mb-1 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 text-indigo-400" /> AI 추천 인사이트
+                            </p>
+                            <p className="text-xs text-slate-700 leading-relaxed italic">"{matching.ai_reason}"</p>
+                            {matching.ai_score && (
+                                <p className="text-[10px] text-indigo-400 mt-1 font-medium">적합도 점수: {matching.ai_score}점</p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* 상태별 액션 UI */}
+                    <div className="border-t border-slate-100 pt-4">
+                        {isSuccess ? renderSuccessUI() : (isFailed || isExpired) ? renderFailedUI() : renderPendingUI()}
+                    </div>
+
+                    {/* 공통 정보 (기한 등) */}
+                    {!isSuccess && !isFailed && matching.expires_at && (
+                        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-2.5 rounded text-[11px] justify-center">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>링크 만료 기한: {new Date(matching.expires_at).toLocaleString()}</span>
+                            {isExpired && <span className="font-bold underline ml-1">(이미 만료됨)</span>}
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter className="pt-2">
+                    <Button variant="outline" className="w-full" onClick={onClose}>닫기</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
@@ -262,6 +504,8 @@ export default function AdminPage() {
     const [aiLoading, setAiLoading] = useState(false);
     const [aiResults, setAiResults] = useState<AIRecommendResult[]>([]);
     const [aiTargetUserId, setAiTargetUserId] = useState<string | null>(null);
+
+    const [selectedMatching, setSelectedMatching] = useState<MatchingResponse | null>(null);
 
     // ── 유저 목록 fetch ──────────────────────
     const fetchUsers = useCallback(async () => {
@@ -722,7 +966,10 @@ export default function AdminPage() {
                         ) : (
                             <div className="space-y-4">
                                 {matchings.map((match) => (
-                                    <Card key={match.id} className="shadow-sm border-slate-200 overflow-hidden">
+                                    <Card
+                                        key={match.id}
+                                        className="shadow-sm border-slate-200 overflow-hidden hover:border-blue-300 transition-colors"
+                                    >
                                         <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                                             <span>생성: {new Date(match.created_at).toLocaleString()}</span>
                                             <div className="flex items-center gap-1.5">
@@ -733,6 +980,15 @@ export default function AdminPage() {
                                                 ) : (
                                                     <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">진행 중 ⏳</span>
                                                 )}
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-7 px-2 text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                                    onClick={() => setSelectedMatching(match)}
+                                                >
+                                                    <ExternalLink className="w-3 h-3 mr-1" />
+                                                    상세/메시지
+                                                </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -748,8 +1004,11 @@ export default function AdminPage() {
                                                 {/* User A */}
                                                 <div className={`p-4 flex flex-col gap-3 transition-colors ${match.user_a_info.gender === "MALE" ? "bg-blue-50/20" : "bg-pink-50/20"}`}>
                                                     <div
-                                                        className="flex items-center gap-3 cursor-pointer group"
-                                                        onClick={() => setSelectedUser(match.user_a_info)}
+                                                        className="flex items-center gap-3 cursor-pointer group hover:bg-white/40 p-1 -m-1 rounded-lg transition-colors"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedUser(match.user_a_info);
+                                                        }}
                                                     >
                                                         <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0 group-hover:bg-blue-100 transition-colors">
                                                             {match.user_a_info.gender === "MALE" ? "👨" : "👩"}
@@ -779,8 +1038,11 @@ export default function AdminPage() {
                                                 {/* User B */}
                                                 <div className={`p-4 flex flex-col gap-3 transition-colors ${match.user_b_info.gender === "MALE" ? "bg-blue-50/20" : "bg-pink-50/20"}`}>
                                                     <div
-                                                        className="flex items-center gap-3 cursor-pointer group"
-                                                        onClick={() => setSelectedUser(match.user_b_info)}
+                                                        className="flex items-center gap-3 cursor-pointer group hover:bg-white/40 p-1 -m-1 rounded-lg transition-colors"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedUser(match.user_b_info);
+                                                        }}
                                                     >
                                                         <div className="w-10 h-10 rounded-full bg-pink-50 text-pink-600 flex items-center justify-center text-lg shrink-0 group-hover:bg-pink-100 transition-colors">
                                                             {match.user_b_info.gender === "MALE" ? "👨" : "👩"}
@@ -820,6 +1082,15 @@ export default function AdminPage() {
             <UserDetailDialog
                 user={selectedUser}
                 onClose={() => setSelectedUser(null)}
+            />
+
+            <MatchingDetailDialog
+                matching={selectedMatching}
+                onClose={() => setSelectedMatching(null)}
+                onUpdate={(updated) => {
+                    setMatchings((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+                    setSelectedMatching(updated);
+                }}
             />
 
             {/* 삭제 확인 다이얼로그 */}

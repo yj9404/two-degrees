@@ -36,6 +36,8 @@ from schemas import (
     MatchingResponse,
     AIRecommendRequest,
     AIRecommendResult,
+    SharedProfileRead,
+    MatchRespondRequest,
 )
 
 # ---------------------------------------------------------------------------
@@ -460,6 +462,10 @@ def _build_matching_response(matching: Matching, db: Session):
         "created_at": matching.created_at,
         "user_a_info": user_a,
         "user_b_info": user_b,
+        "user_a_token": matching.user_a_token,
+        "user_b_token": matching.user_b_token,
+        "expires_at": matching.expires_at,
+        "is_contact_shared": matching.is_contact_shared,
     }
 
 
@@ -689,3 +695,159 @@ def ai_recommend_matchings(
     # 점수 내림차순 정렬
     valid_results.sort(key=lambda x: x.score, reverse=True)
     return valid_results
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/matchings/{matching_id}/contact-shared – 연락처 전달 완료 처리
+# ---------------------------------------------------------------------------
+
+@app.patch(
+    "/api/matchings/{matching_id}/contact-shared",
+    response_model=MatchingResponse,
+    summary="연락처 전달 완료 처리 (관리자)",
+    tags=["matchings"],
+)
+def mark_matching_contact_shared(
+    matching_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """
+    관리자가 매칭된 유저들에게 수동으로 연락처를 전달했음을 기록합니다.
+    양쪽 유저의 상태가 모두 ACCEPTED여야만 호출 가능합니다.
+    """
+    matching = db.query(Matching).filter(Matching.id == matching_id).first()
+    if not matching:
+        raise HTTPException(status_code=404, detail="매칭 정보를 찾을 수 없습니다.")
+
+    # 양쪽 ACCEPTED 여부 확인
+    if matching.user_a_status != MatchStatus.ACCEPTED or matching.user_b_status != MatchStatus.ACCEPTED:
+        raise HTTPException(
+            status_code=400,
+            detail="양쪽 유저가 모두 수락한 상태에서만 연락처 공유 완료 처리가 가능합니다."
+        )
+
+    matching.is_contact_shared = True
+    db.commit()
+    db.refresh(matching)
+    
+    # MatchingResponse 스키마에 맞춰 user_a_info, user_b_info를 주입하기 위해 속성을 탐색합니다.
+    # (SQLAlchemy relationship이 정의되어 있지 않다면 수동으로 fetch하여 부착해야 할 수 있습니다.)
+    # models.py를 다시 확인해보면 relationship이 없습니다. main.py의 다른 list_matchings 로직을 보죠.
+    
+    # User 정보를 가져와서 Matching 객체에 임시 속성으로 부착 (MatchingResponse 매핑용)
+    matching.user_a_info = db.query(User).filter(User.id == matching.user_a_id).first()
+    matching.user_b_info = db.query(User).filter(User.id == matching.user_b_id).first()
+    
+    return matching
+
+
+# ---------------------------------------------------------------------------
+# Shared Profile (Link-based) API
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/shared/{token}",
+    response_model=SharedProfileRead,
+    summary="공유 받은 프로필 조회",
+    tags=["matchings"],
+)
+def get_shared_profile(token: str, db: Session = Depends(get_db)):
+    """
+    토큰을 통해 매칭 상대의 프로필을 조회합니다.
+    - 24시간 5분 이내만 유효합니다.
+    - 이미 응답한 경우 조회할 수 없습니다.
+    """
+    matching = db.query(Matching).filter(
+        (Matching.user_a_token == token) | (Matching.user_b_token == token)
+    ).first()
+
+    if not matching:
+        raise HTTPException(status_code=404, detail="유효하지 않은 링크입니다.")
+
+    # 1. 만료 시간 체크
+    if matching.expires_at and matching.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="링크가 만료되었습니다.")
+
+    # 2. 이미 응답했는지 체크
+    is_user_a = (matching.user_a_token == token)
+    current_status = matching.user_a_status if is_user_a else matching.user_b_status
+    if current_status != MatchStatus.PENDING:
+        raise HTTPException(status_code=403, detail="이미 응답을 완료한 링크입니다.")
+
+    # 3. 상대방 정보 추출
+    other_user_id = matching.user_b_id if is_user_a else matching.user_a_id
+    other_user = db.query(User).filter(User.id == other_user_id).first()
+    
+    if not other_user:
+        raise HTTPException(status_code=404, detail="상대방 정보를 찾을 수 없습니다.")
+
+    # 2026년 기준 나이 계산
+    age = 2026 - other_user.birth_year
+
+    return SharedProfileRead(
+        age=age,
+        job=other_user.job,
+        height=other_user.height,
+        active_area=other_user.active_area,
+        education=other_user.education,
+        workplace=other_user.workplace,
+        mbti=other_user.mbti,
+        religion=other_user.religion,
+        smoking_status=other_user.smoking_status,
+        drinking_status=other_user.drinking_status,
+        exercise=other_user.exercise,
+        hobbies=other_user.hobbies,
+        ai_reason=matching.ai_reason,
+        photo_urls=other_user.photo_urls or []
+    )
+
+
+@app.post(
+    "/api/shared/{token}/respond",
+    summary="매칭 수락/거절 응답",
+    tags=["matchings"],
+)
+def respond_shared_matching(
+    token: str,
+    payload: MatchRespondRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    공유 받은 프로필 링크에서 수락(ACCEPTED) 또는 거절(REJECTED)을 결정합니다.
+    - 양측 모두 수락 시 두 사용자 모두 비활성화(is_active=False) 처리됩니다.
+    """
+    matching = db.query(Matching).filter(
+        (Matching.user_a_token == token) | (Matching.user_b_token == token)
+    ).first()
+
+    if not matching:
+        raise HTTPException(status_code=404, detail="유효하지 않은 링크입니다.")
+
+    # 만료 체크
+    if matching.expires_at and matching.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="링크가 만료되었습니다.")
+
+    is_user_a = (matching.user_a_token == token)
+    
+    # 이미 응답했는지 체크
+    if (is_user_a and matching.user_a_status != MatchStatus.PENDING) or \
+       (not is_user_a and matching.user_b_status != MatchStatus.PENDING):
+        raise HTTPException(status_code=403, detail="이미 응답한 요청입니다.")
+
+    # 상태 업데이트
+    if is_user_a:
+        matching.user_a_status = payload.status
+        # 토큰 즉시 만료 처리 (재사용 방지)
+        matching.user_a_token = None
+    else:
+        matching.user_b_status = payload.status
+        # 토큰 즉시 만료 처리 (재사용 방지)
+        matching.user_b_token = None
+
+    # 양쪽 모두 수락 시 비활성화 로직
+    if matching.user_a_status == MatchStatus.ACCEPTED and matching.user_b_status == MatchStatus.ACCEPTED:
+        db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).update({"is_active": False}, synchronize_session=False)
+
+    db.commit()
+    return {"message": "정상적으로 처리되었습니다.", "status": payload.status}

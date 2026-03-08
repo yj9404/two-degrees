@@ -14,6 +14,8 @@ import type {
     MatchingResponse,
     AIRecommendRequest,
     AIRecommendResult,
+    SharedProfileRead,
+    MatchRespondRequest,
 } from "@/types/user";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -202,9 +204,16 @@ export async function updateMatchingStatus(
 }
 
 /** DELETE /api/matchings/{matching_id} – 매칭 삭제 (관리자) */
-export async function deleteMatching(matchingId: string): Promise<void> {
-    return apiFetch(`/api/matchings/${matchingId}`, {
+export async function deleteMatching(matching_id: string): Promise<void> {
+    return apiFetch(`/api/matchings/${matching_id}`, {
         method: "DELETE",
+    });
+}
+
+/** PATCH /api/matchings/{matching_id}/contact-shared – 연락처 전달 완료 처리 (관리자) */
+export async function markMatchingContactShared(matchingId: string): Promise<MatchingResponse> {
+    return apiFetch(`/api/matchings/${matchingId}/contact-shared`, {
+        method: "PATCH",
     });
 }
 
@@ -213,6 +222,26 @@ export async function getAIRecommendations(
     payload: AIRecommendRequest
 ): Promise<AIRecommendResult[]> {
     return apiFetch("/api/matchings/ai-recommend", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+/** ──────────────────────────────────────────────────────────── 
+ * SHARED PROFILE API (Link-based)
+ * ──────────────────────────────────────────────────────────── */
+
+/** GET /api/shared/{token} – 공유 프로필 조회 */
+export async function getSharedProfile(token: string): Promise<SharedProfileRead & { expires_at?: string }> {
+    return apiFetch(`/api/shared/${token}`, { method: "GET" });
+}
+
+/** POST /api/shared/{token}/respond – 매칭 수락/거절 */
+export async function respondSharedMatching(
+    token: string,
+    payload: { status: MatchStatus }
+): Promise<{ message: string; status: MatchStatus }> {
+    return apiFetch(`/api/shared/${token}/respond`, {
         method: "POST",
         body: JSON.stringify(payload),
     });

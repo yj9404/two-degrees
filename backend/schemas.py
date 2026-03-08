@@ -202,6 +202,10 @@ class MatchingResponse(BaseModel):
     ai_score: Optional[int] = None
     ai_reason: Optional[str] = None
     created_at: datetime
+    user_a_token: Optional[str] = None
+    user_b_token: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    is_contact_shared: bool = False
 
     # 관리자 확인용 간략한 유저 정보 포함
     user_a_info: UserReadAdmin
@@ -225,3 +229,30 @@ class AIRecommendResult(BaseModel):
     candidate_id: str
     score: int = Field(..., ge=0, le=100)
     reason: str
+
+
+# ---------------------------------------------------------------------------
+# Shared Profile (Link-based) 스키마
+# ---------------------------------------------------------------------------
+
+class SharedProfileRead(BaseModel):
+    """24시간 프로필 공유 링크를 통해 조회되는 상대방의 제한된 프로필 정보"""
+    age: int
+    job: str
+    height: Optional[int] = None
+    active_area: Optional[str] = None
+    education: Optional[str] = None
+    workplace: Optional[str] = None
+    mbti: Optional[str] = None
+    religion: Optional[str] = None
+    smoking_status: Optional[SmokingStatus] = None
+    drinking_status: Optional[DrinkingStatus] = None
+    exercise: Optional[str] = None
+    hobbies: Optional[str] = None
+    ai_reason: Optional[str] = None
+    photo_urls: List[str] = Field(default_factory=list)
+
+
+class MatchRespondRequest(BaseModel):
+    """프로필 링크에서 수락/거절 응답을 위한 요청 바디"""
+    status: MatchStatus # ACCEPTED or REJECTED
