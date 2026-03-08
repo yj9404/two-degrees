@@ -155,7 +155,7 @@ function UserDetailDialog({
                                 >
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
-                                        src={url}
+                                        src={`${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(url)}`}
                                         alt={`${user.name} 사진 ${idx + 1}`}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
@@ -207,7 +207,7 @@ function UserDetailDialog({
                             {/* 확대된 이미지 */}
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
-                                src={user.photo_urls[zoomedPhotoIndex]} 
+                                src={`${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(user.photo_urls[zoomedPhotoIndex])}`} 
                                 alt="확대 이미지" 
                                 className="max-w-full max-h-[60vh] object-contain rounded-md select-none"
                             />
@@ -263,6 +263,8 @@ function UserCard({
     onToggleActive: (user: UserReadAdmin) => void;
     onDelete: () => void;
 }) {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
     const cardBgClass = user.gender === "MALE"
         ? "bg-blue-50/20 hover:bg-blue-50/60 border-blue-100"
         : "bg-pink-50/20 hover:bg-pink-50/60 border-pink-100";
@@ -293,7 +295,7 @@ function UserCard({
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden relative">
                         {user.photo_urls && user.photo_urls.length > 0 ? (
                             <img
-                                src={`/api/admin/photos/proxy?url=${encodeURIComponent(user.photo_urls[0])}`}
+                                src={`${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(user.photo_urls[0])}`}
                                 alt={`${user.name} 썸네일`}
                                 className="w-full h-full object-cover"
                                 onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
