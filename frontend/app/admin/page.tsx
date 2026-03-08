@@ -290,8 +290,21 @@ function UserCard({
                     </div>
 
                     {/* 아바타 */}
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden">
-                        {user.gender === "MALE" ? "👨" : "👩"}
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden relative">
+                        {user.photo_urls && user.photo_urls.length > 0 ? (
+                            <img
+                                src={`/api/admin/photos/proxy?url=${encodeURIComponent(user.photo_urls[0])}`}
+                                alt={`${user.name} 썸네일`}
+                                className="w-full h-full object-cover"
+                                onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                                    // 이미지 로드 실패 시 이모지로 폴백
+                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.parentElement!.innerText = user.gender === "MALE" ? "👨" : "👩";
+                                }}
+                            />
+                        ) : (
+                            user.gender === "MALE" ? "👨" : "👩"
+                        )}
                     </div>
 
                     {/* 기본 정보 */}
