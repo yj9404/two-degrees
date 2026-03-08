@@ -443,49 +443,6 @@ def delete_user(user_id: str, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
-# GET /api/admin/photos/proxy – 이미지 프록시 (강제 다운로드)
-# ---------------------------------------------------------------------------
-
-@app.get(
-    "/api/admin/photos/proxy",
-    summary="이미지 프록시 다운로드 (CORS 우회)",
-    tags=["admin"],
-)
-def proxy_photo(
-    url: str = Query(..., description="다운로드할 이미지 Public URL"),
-    name: str = Query("photo", description="저장 파일명 (확장자 제외)"),
-    _admin: str = Depends(verify_admin),
-):
-    """
-    Cloudflare R2 등 cross-origin 이미지를 브라우저가 직접 다운로드할 수 있도록
-    백엔드가 프록시로 가져와 Content-Disposition: attachment로 응답합니다.
-    """
-    try:
-        resp = httpx.get(url, timeout=30, follow_redirects=True)
-        resp.raise_for_status()
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
-
-    content_type = resp.headers.get("content-type", "image/jpeg")
-    raw_ext = content_type.split("/")[-1].split(";")[0].lower()
-
-    # jfif, pjpeg 등 JPEG 계열을 모두 jpg로 통일
-    MIME_TO_EXT = {
-        "jpeg": "jpg", "jfif": "jpg", "pjpeg": "jpg", "jpg": "jpg",
-        "png": "png", "webp": "webp", "gif": "gif",
-    }
-    ext = MIME_TO_EXT.get(raw_ext, "jpg")
-    normalized_content_type = f"image/{ext if ext != 'jpg' else 'jpeg'}"
-
-    safe_name = urllib.parse.quote(f"{name}.{ext}")
-    headers = {
-        "Content-Disposition": f'attachment; filename*=UTF-8\'\'{safe_name}',
-        "Content-Type": normalized_content_type,
-    }
-    return StreamingResponse(iter([resp.content]), media_type=normalized_content_type, headers=headers)
-
-
-# ---------------------------------------------------------------------------
 # Matching 응답 보조기
 # ---------------------------------------------------------------------------
 
