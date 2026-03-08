@@ -801,7 +801,8 @@ def get_shared_profile(token: str, db: Session = Depends(get_db)):
         exercise=other_user.exercise,
         hobbies=other_user.hobbies,
         ai_reason=matching.ai_reason,
-        photo_urls=other_user.photo_urls or []
+        photo_urls=other_user.photo_urls or [],
+        expires_at=matching.expires_at
     )
 
 

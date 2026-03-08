@@ -116,20 +116,25 @@ export default function SharedProfilePage() {
             <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm flex flex-col">
                 {/* Expiration Banner */}
                 {profile.expires_at && (
-                    <div className="bg-blue-50 px-4 py-3 flex items-center justify-center gap-2 border-b border-blue-100">
-                        <Clock className="w-4 h-4 text-blue-600" />
-                        <span className="text-xs font-medium text-blue-700">
-                            만료 예정: {format(new Date(profile.expires_at), "M월 d일 HH:mm", { locale: ko })}
-                        </span>
-                        <span className="text-xs font-bold text-blue-600 ml-1">
-                            ({timeLeft})
-                        </span>
+                    <div className="bg-blue-500 px-4 py-2.5 flex items-center justify-between border-b border-blue-600 shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-white/90" />
+                            <span className="text-[11px] text-white font-bold uppercase tracking-tight">
+                                남은 시간
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-bold text-white tabular-nums tracking-wider font-mono">
+                                {timeLeft}
+                            </span>
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-200 animate-pulse" />
+                        </div>
                     </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto pb-4">
+                <div className="flex-1 overflow-y-auto pb-4 select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
                     {/* Photo Gallery with Thumbnails */}
-                    <div className="relative aspect-[3/4] bg-slate-900 overflow-hidden">
+                    <div className="relative aspect-[3/4] bg-slate-900 overflow-hidden" style={{ WebkitTouchCallout: 'none' }}>
                         {profile.photo_urls && profile.photo_urls.length > 0 ? (
                             <>
                                 {/* Blurred background for a premium look when containing images */}
@@ -138,6 +143,7 @@ export default function SharedProfilePage() {
                                     alt=""
                                     fill
                                     className="object-cover blur-2xl opacity-40 scale-110"
+                                    draggable={false}
                                 />
                                 <Image
                                     src={profile.photo_urls[activePhotoIndex] || profile.photo_urls[0]}
@@ -145,6 +151,13 @@ export default function SharedProfilePage() {
                                     fill
                                     className="object-contain transition-all duration-300 relative z-10"
                                     priority
+                                    draggable={false}
+                                />
+                                {/* Touch Prevention Overlay */}
+                                <div
+                                    className="absolute inset-0 z-20 bg-transparent"
+                                    style={{ WebkitTouchCallout: 'none' }}
+                                    onContextMenu={(e) => e.preventDefault()}
                                 />
                             </>
                         ) : (
@@ -153,9 +166,14 @@ export default function SharedProfilePage() {
                                 <span className="text-xs font-medium">프로필 사진이 없습니다.</span>
                             </div>
                         )}
-                        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/60 to-transparent text-white">
-                            <h1 className="text-2xl font-bold">{profile.age}세</h1>
-                            <p className="opacity-90">{profile.job}</p>
+
+                        {/* Information Belt (Stripe) Overlay */}
+                        <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-black/40 backdrop-blur-md text-white border-t border-white/10 z-10">
+                            <div className="flex items-baseline gap-2">
+                                <h1 className="text-2xl font-bold tracking-tight">{profile.age}세</h1>
+                                <span className="text-xs font-medium opacity-40">|</span>
+                                <p className="text-sm font-medium opacity-90 truncate max-w-[220px]">{profile.job}</p>
+                            </div>
                         </div>
                     </div>
 
@@ -170,25 +188,35 @@ export default function SharedProfilePage() {
                                         ? "ring-2 ring-blue-500 ring-offset-2 scale-105"
                                         : "opacity-60 grayscale-[30%] hover:opacity-100"
                                         }`}
+                                    style={{ WebkitTouchCallout: 'none' }}
                                 >
                                     <Image
                                         src={url}
                                         alt={`Thumbnail ${idx + 1}`}
                                         fill
                                         className="object-cover"
+                                        draggable={false}
+                                    />
+                                    {/* Security Layer for Thumbnails */}
+                                    <div
+                                        className="absolute inset-0 z-10 bg-transparent"
+                                        onContextMenu={(e) => e.preventDefault()}
                                     />
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    <div className="px-6 pt-2">
+                    <div className="px-6 space-y-1.5">
                         {profile.photo_urls && profile.photo_urls.length > 1 && (
                             <p className="text-[10px] text-slate-400 flex items-center gap-1">
                                 <Sparkles className="w-3 h-3" />
                                 사진을 탭하여 다른 사진을 볼 수 있습니다.
                             </p>
                         )}
+                        <p className="text-[9px] text-slate-400 leading-tight">
+                            * 프라이버시 보호를 위해 캡처 및 무단 저장을 금지하며, 위반 시 서비스 이용이 제한될 수 있습니다.
+                        </p>
                     </div>
 
                     <div className="p-6 space-y-8">

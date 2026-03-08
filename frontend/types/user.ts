@@ -161,6 +161,7 @@ export interface SharedProfileRead {
     hobbies?: string;
     ai_reason?: string;
     photo_urls: string[];
+    expires_at?: string;
 }
 
 /** 매칭 응담 요청 */

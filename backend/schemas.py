@@ -251,6 +251,7 @@ class SharedProfileRead(BaseModel):
     hobbies: Optional[str] = None
     ai_reason: Optional[str] = None
     photo_urls: List[str] = Field(default_factory=list)
+    expires_at: Optional[datetime] = None
 
 
 class MatchRespondRequest(BaseModel):
