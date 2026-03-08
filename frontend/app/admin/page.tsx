@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAIRecommendations, deleteMatching } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, deleteMatching } from "@/lib/api";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +54,10 @@ function UserDetailDialog({
                 const url = user.photo_urls[i];
                 const name = `${user.name}_${i + 1}`;
                 const proxyUrl = `${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`;
-                const res = await fetch(proxyUrl);
+                const token = getAdminToken();
+                const res = await fetch(proxyUrl, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (!res.ok) {
                     alert(`사진 ${i + 1}번 다운로드 실패 (서버 오류 ${res.status})\n백엔드 서버를 재시작해 주세요.`);
                     break;
@@ -155,7 +158,7 @@ function UserDetailDialog({
                                 >
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
-                                        src={`${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(url)}`}
+                                        src={url}
                                         alt={`${user.name} 사진 ${idx + 1}`}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
@@ -207,7 +210,7 @@ function UserDetailDialog({
                             {/* 확대된 이미지 */}
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
-                                src={`${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(user.photo_urls[zoomedPhotoIndex])}`} 
+                                src={user.photo_urls[zoomedPhotoIndex]} 
                                 alt="확대 이미지" 
                                 className="max-w-full max-h-[60vh] object-contain rounded-md select-none"
                             />
@@ -295,7 +298,7 @@ function UserCard({
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 overflow-hidden relative">
                         {user.photo_urls && user.photo_urls.length > 0 ? (
                             <img
-                                src={`${API_BASE}/api/admin/photos/proxy?url=${encodeURIComponent(user.photo_urls[0])}`}
+                                src={user.photo_urls[0]}
                                 alt={`${user.name} 썸네일`}
                                 className="w-full h-full object-cover"
                                 onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
