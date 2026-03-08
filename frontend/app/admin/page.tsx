@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -35,6 +36,7 @@ function UserDetailDialog({
     onClose: () => void;
 }) {
     const [downloading, setDownloading] = useState(false);
+    const [zoomedPhotoIndex, setZoomedPhotoIndex] = useState<number | null>(null);
 
     if (!user) return null;
 
@@ -113,8 +115,9 @@ function UserDetailDialog({
     ];
 
     return (
-        <Dialog open onOpenChange={onClose}>
-            <DialogContent
+        <>
+            <Dialog open onOpenChange={onClose}>
+                <DialogContent
                 className="max-w-md max-h-[80vh] overflow-y-auto"
                 aria-describedby={undefined}
             >
@@ -141,18 +144,23 @@ function UserDetailDialog({
                         </p>
                         <div className="grid grid-cols-3 gap-2">
                             {user.photo_urls.map((url, idx) => (
-                                <div key={url} className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
+                                <div 
+                                    key={url} 
+                                    className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 cursor-pointer group"
+                                    onClick={() => setZoomedPhotoIndex(idx)}
+                                >
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={url}
                                         alt={`${user.name} 사진 ${idx + 1}`}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
                                     {idx === 0 && (
-                                        <span className="absolute bottom-1 left-1 text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded">
+                                        <span className="absolute bottom-1 left-1 text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded z-10">
                                             대표
                                         </span>
                                     )}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
                                 </div>
                             ))}
                         </div>
@@ -176,7 +184,65 @@ function UserDetailDialog({
                     </Button>
                 </div>
             </DialogContent>
-        </Dialog>
+            </Dialog>
+
+            {/* 확대된 사진 오버레이 */}
+            {zoomedPhotoIndex !== null && user.photo_urls && (
+                <div 
+                    className="fixed inset-0 z-[100] bg-black/95 flex flex-col justify-center items-center select-none"
+                    onClick={() => setZoomedPhotoIndex(null)}
+                >
+                    {/* 닫기 버튼 */}
+                    <button 
+                        className="absolute top-4 right-4 p-2 text-white/70 hover:text-white z-50 bg-black/50 rounded-full"
+                        onClick={(e) => { e.stopPropagation(); setZoomedPhotoIndex(null); }}
+                    >
+                        <X className="w-6 h-6" />
+                    </button>
+                    
+                    {/* 상단 카운터 */}
+                    <div className="absolute top-6 left-0 right-0 text-center text-white/70 font-medium z-40 pointer-events-none text-sm tracking-widest">
+                        {zoomedPhotoIndex + 1} / {user.photo_urls.length}
+                    </div>
+
+                    <div className="relative w-full h-full flex items-center justify-center p-4">
+                        {/* 확대된 이미지 */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                            src={user.photo_urls[zoomedPhotoIndex]} 
+                            alt="확대 이미지" 
+                            className="max-w-full max-h-full object-contain cursor-default"
+                            onClick={(e) => e.stopPropagation()}
+                            key={zoomedPhotoIndex}
+                        />
+
+                        {/* 좌우 이동 버튼 */}
+                        {user.photo_urls.length > 1 && (
+                            <>
+                                <button
+                                    className="absolute left-4 p-3 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/50"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setZoomedPhotoIndex(zoomedPhotoIndex === 0 ? user.photo_urls!.length - 1 : zoomedPhotoIndex - 1);
+                                    }}
+                                >
+                                    <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+                                </button>
+                                <button
+                                    className="absolute right-4 p-3 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/50"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setZoomedPhotoIndex(zoomedPhotoIndex === user.photo_urls!.length - 1 ? 0 : zoomedPhotoIndex + 1);
+                                    }}
+                                >
+                                    <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
 
