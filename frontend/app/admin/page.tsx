@@ -911,7 +911,7 @@ export default function AdminPage() {
                 {activeTab === "USERS" && (
                     <div className="space-y-6">
                         {/* 통계 카드 */}
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 gap-3">
                             {[
                                 { label: "전체", value: users.length, color: "text-slate-900" },
                                 { label: "매칭 활성", value: activeCount, color: "text-blue-600" },
@@ -999,7 +999,7 @@ export default function AdminPage() {
                         {filteredUsers.length === 0 && !loadingUsers ? (
                             <p className="text-center text-slate-400 py-16">가입자가 없습니다.</p>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 gap-8">
                                 {/* 남성 목록 */}
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between border-b border-blue-100 pb-2">
@@ -1114,7 +1114,7 @@ export default function AdminPage() {
                                             </div>
                                         </div>
                                         <CardContent className="p-0">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                                            <div className="grid grid-cols-1 divide-y divide-slate-100">
                                                 {/* User A */}
                                                 <div className={`p-4 flex flex-col gap-3 transition-colors ${match.user_a_info.gender === "MALE" ? "bg-blue-50/20" : "bg-pink-50/20"}`}>
                                                     <div
