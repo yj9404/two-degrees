@@ -6,7 +6,7 @@ TwoDegrees 소개팅 풀 등록을 위한 SQLAlchemy ORM 모델
 import uuid
 from enum import Enum as PyEnum
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     Boolean,

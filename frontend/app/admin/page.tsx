@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Dialog,
     DialogContent,
@@ -1276,8 +1277,18 @@ export default function AdminPage() {
                                             </div>
                                             <CardContent className="p-4 bg-white space-y-4">
                                                 <div className="bg-slate-50 rounded p-3 text-sm text-slate-700 leading-relaxed border border-slate-100">
-                                                    <p className="font-semibold text-slate-900 mb-1 text-xs">🤖 AI 추천 사유</p>
-                                                    {result.reason}
+                                                    <p className="font-semibold text-slate-900 mb-2 text-xs">🤖 AI 추천 사유 (수정 가능)</p>
+                                                    <Textarea
+                                                        value={result.reason}
+                                                        onChange={(e) => {
+                                                            const newReason = e.target.value;
+                                                            setAiResults(prev => prev.map(res =>
+                                                                res.candidate_id === result.candidate_id ? { ...res, reason: newReason } : res
+                                                            ));
+                                                        }}
+                                                        className="text-xs bg-white border-slate-200 min-h-[100px] leading-relaxed resize-none focus:ring-1 focus:ring-indigo-500"
+                                                        placeholder="AI 추천 사유를 입력하세요..."
+                                                    />
                                                 </div>
                                                 <Button
                                                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
