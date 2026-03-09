@@ -506,17 +506,18 @@ function UserCard({
 
                     {/* 기본 정보 */}
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-slate-900 font-semibold text-sm truncate">
-                                {user.name}
-                            </span>
-                            <span className="text-slate-400 text-[10px]">
+                        <p className="text-slate-900 font-bold text-sm truncate leading-tight">
+                            {user.name}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-slate-400 text-[10px] font-medium shrink-0">
                                 {user.birth_year % 100}년생
                             </span>
+                            <span className="text-slate-300 text-[10px]">/</span>
+                            <span className="text-slate-500 text-[10px] truncate">
+                                {user.job}
+                            </span>
                         </div>
-                        <p className="text-slate-500 text-[10px] truncate mt-0.5">
-                            {user.job}
-                        </p>
                     </div>
 
                     {/* 액션 */}
