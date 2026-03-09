@@ -425,7 +425,7 @@ function MatchingDetailDialog({
                     {!isSuccess && !isFailed && matching.expires_at && (
                         <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-2.5 rounded text-[11px] justify-center">
                             <Clock className="w-3.5 h-3.5" />
-                            <span>링크 만료 기한: {new Date(matching.expires_at).toLocaleString()}</span>
+                            <span>링크 만료 기한: {matching.expires_at ? new Date(matching.expires_at).toLocaleString() : "-"}</span>
                             {isExpired && <span className="font-bold underline ml-1">(이미 만료됨)</span>}
                         </div>
                     )}
@@ -1083,7 +1083,7 @@ export default function AdminPage() {
                                         className="shadow-sm border-slate-200 overflow-hidden hover:border-blue-300 transition-colors"
                                     >
                                         <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                                            <span>생성: {new Date(match.created_at).toLocaleString()}</span>
+                                            <span>생성: {match.created_at ? new Date(match.created_at).toLocaleString() : "-"}</span>
                                             <div className="flex items-center gap-1.5">
                                                 {(match.user_a_status === "ACCEPTED" && match.user_b_status === "ACCEPTED") ? (
                                                     <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">성사 완료! 🎉</span>

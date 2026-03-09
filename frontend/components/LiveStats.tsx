@@ -20,14 +20,14 @@ export default function LiveStats() {
     const statsData = [
         {
             label: "소개팅 풀 등록자",
-            value: stats ? stats.total_users.toLocaleString() : "...",
+            value: stats?.total_users != null ? stats.total_users.toLocaleString() : "...",
             unit: "명",
             icon: <Users className="text-blue-600" size={20} />,
             bg: "bg-blue-50"
         },
         {
             label: "누적 매칭 제안",
-            value: stats ? stats.total_matchings.toLocaleString() : "...",
+            value: stats?.total_matchings != null ? stats.total_matchings.toLocaleString() : "...",
             unit: "건",
             icon: <Heart className="text-pink-600" size={20} />,
             bg: "bg-pink-50"
