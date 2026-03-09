@@ -16,6 +16,7 @@ import type {
     AIRecommendResult,
     SharedProfileRead,
     MatchRespondRequest,
+    DailyMatchingStatsResponse,
 } from "@/types/user";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -230,6 +231,11 @@ export async function getAIRecommendations(
         method: "POST",
         body: JSON.stringify(payload),
     });
+}
+
+/** GET /api/matchings/stats/daily – 날짜별 매칭 통계 */
+export async function getDailyMatchingStats(): Promise<DailyMatchingStatsResponse> {
+    return apiFetch("/api/matchings/stats/daily", { method: "GET" });
 }
 
 /** ──────────────────────────────────────────────────────────── 

@@ -147,6 +147,8 @@ class UserStatsResponse(BaseModel):
     """GET /api/users/stats 응답"""
 
     total_active: int
+    total_users: int
+    total_matchings: int
     male_active: int
     female_active: int
     male_ratio: float
@@ -258,3 +260,12 @@ class SharedProfileRead(BaseModel):
 class MatchRespondRequest(BaseModel):
     """프로필 링크에서 수락/거절 응답을 위한 요청 바디"""
     status: MatchStatus # ACCEPTED or REJECTED
+
+class DailyMatchingStats(BaseModel):
+    """날짜별 매칭 통계 개별 항목"""
+    date: str
+    count: int
+
+class DailyMatchingStatsResponse(BaseModel):
+    """날짜별 매칭 통계 응답"""
+    stats: List[DailyMatchingStats]

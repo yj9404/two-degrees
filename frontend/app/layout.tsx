@@ -41,6 +41,8 @@ export const metadata: Metadata = {
   },
 };
 
+import Header from "@/components/Header";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -49,14 +51,15 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-slate-50`}
       >
-        <div className="flex-1">
+        <Header />
+        <div className="flex-1 w-full max-w-md mx-auto bg-white shadow-sm ring-1 ring-slate-200">
           {children}
         </div>
         {/* 서비스 공통 최하단 버전 표시 */}
         <footer className="py-6 text-center text-xs text-slate-400 bg-slate-50">
-          TwoDegrees v0.0.2
+          TwoDegrees v1.0.0
         </footer>
       </body>
     </html>

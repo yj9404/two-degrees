@@ -94,6 +94,8 @@ export interface PresignedUrlResponse {
 /** GET /api/users/stats 응답 */
 export interface UserStatsResponse {
     total_active: number;
+    total_users: number;
+    total_matchings: number;
     male_active: number;
     female_active: number;
     male_ratio: number;
@@ -168,4 +170,15 @@ export interface SharedProfileRead {
 /** 매칭 응담 요청 */
 export interface MatchRespondRequest {
     status: MatchStatus;
+}
+
+/** 날짜별 매칭 통계 개별 항목 */
+export interface DailyMatchingStats {
+    date: string;
+    count: number;
+}
+
+/** 날짜별 매칭 통계 응답 */
+export interface DailyMatchingStatsResponse {
+    stats: DailyMatchingStats[];
 }

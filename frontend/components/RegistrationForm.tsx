@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { registerUser, getUserStats } from "@/lib/api";
 import type { UserCreatePayload, Gender, SmokingStatus, DrinkingStatus, UserStatsResponse } from "@/types/user";
 
@@ -63,12 +64,22 @@ const INITIAL_FORM: Partial<UserCreatePayload> = {
 // 메인 컴포넌트
 // ────────────────────────────────────────────────────────────────
 export default function RegistrationForm() {
+    const router = useRouter();
     const [form, setForm] = useState<Partial<UserCreatePayload>>(INITIAL_FORM);
     const [status, setStatus] = useState<
         "idle" | "loading" | "success" | "error"
     >("idle");
     const [errorMsg, setErrorMsg] = useState("");
     const [stats, setStats] = useState<UserStatsResponse | null>(null);
+
+    useEffect(() => {
+        if (status === "success") {
+            const timer = setTimeout(() => {
+                router.push("/");
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [status, router]);
 
     useEffect(() => {
         getUserStats().then(setStats).catch(() => { });
@@ -151,29 +162,24 @@ export default function RegistrationForm() {
     // ── 등록 완료 화면 ────────────────────────────────────────────
     if (status === "success") {
         return (
-            <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-                <div className="text-5xl">🎉</div>
-                <h2 className="text-slate-900 font-semibold text-xl">등록 완료!</h2>
-                <p className="text-slate-500 text-sm">
-                    소개팅 풀에 등록되었습니다.
-                    <br />
-                    매칭 연락을 기다려 주세요.
+            <div className="flex flex-col items-center justify-center gap-4 py-20 text-center animate-in fade-in zoom-in duration-500">
+                <div className="text-6xl animate-bounce">🎉</div>
+                <h2 className="text-slate-900 font-bold text-2xl">등록 완료!</h2>
+                <p className="text-slate-500 text-sm leading-relaxed">
+                    소개팅 풀에 성공적으로 등록되었습니다.<br />
+                    잠시 후 메인 페이지로 이동합니다.
                 </p>
+                <div className="mt-4 w-12 h-1 bg-blue-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-600 animate-[progress_3s_linear]" />
+                </div>
                 <Button
-                    variant="outline"
-                    onClick={() => {
-                        setForm(INITIAL_FORM);
-                        setStatus("idle");
-                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="mt-4 text-slate-400"
+                    onClick={() => router.push("/")}
                 >
-                    다시 등록하기
+                    지금 바로 이동하기
                 </Button>
-                <a
-                    href="/auth"
-                    className="text-blue-600 text-sm font-semibold hover:underline"
-                >
-                    나중에 프로필 수정하기 →
-                </a>
             </div>
         );
     }
@@ -560,45 +566,6 @@ export default function RegistrationForm() {
                     {status === "loading" ? "등록 중..." : "소개팅 풀 등록하기"}
                 </Button>
             </form>
-
-            {/* 매칭 진행 방식 FAQ */}
-            <div className="pt-2 space-y-3 pb-4">
-                <details className="group bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden text-sm">
-                    <summary className="flex items-center justify-between cursor-pointer p-4 font-semibold text-slate-800 list-none leading-tight [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors">
-                        <span>💡 매칭은 어떻게 진행되나요?</span>
-                        <span className="transition duration-300 group-open:-rotate-180 text-slate-400">
-                            <svg fill="none" height="20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="20"><path d="M6 9l6 6 6-6"></path></svg>
-                        </span>
-                    </summary>
-                    <div className="px-4 pb-4 text-slate-600 space-y-4 border-t border-slate-100 pt-4 leading-relaxed bg-slate-50/50">
-                        <p>
-                            TwoDegrees는 불필요한 감정 소모와 시간 낭비를 최소화하면서도 프라이버시를 철저히 보호합니다. 귀하의 프로필은 불특정 다수에게 절대 노출되지 않으며, 주선자가 직접 조건을 확인한 후 부합하는 상대에게만 <strong className="font-semibold text-slate-700">제한적으로 전달</strong>됩니다.
-                        </p>
-                        <div className="space-y-1">
-                            <p className="font-semibold text-slate-800">Step 1. 프로필 및 사진 제안</p>
-                            <p>주선자가 양측의 희망 조건과 기피 조건을 교차 검증하여 적합하다고 판단할 경우, 이름과 연락처를 제외한 <span className="font-medium text-slate-700">&apos;상세 텍스트 프로필&apos;</span>과 <span className="font-medium text-slate-700">&apos;사진&apos;</span>을 양측에 제안합니다.</p>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="font-semibold text-slate-800">Step 2. 상호 수락 및 연락처 교환</p>
-                            <p>양측 모두 상대방의 프로필과 사진을 확인한 후 만남에 동의한 경우에만, <span className="font-medium text-slate-700">&apos;실명&apos;</span>과 <span className="font-medium text-slate-700">&apos;연락처&apos;</span>가 교환됩니다. 어느 한쪽이라도 거절할 경우, 추가적인 개인정보는 일절 전달되지 않고 해당 매칭은 즉시 종료됩니다.</p>
-                        </div>
-                    </div>
-                </details>
-
-                <details className="group bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden text-sm">
-                    <summary className="flex items-center justify-between cursor-pointer p-4 font-semibold text-slate-800 list-none leading-tight [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors">
-                        <span>💡 매칭 연락은 언제 오나요?</span>
-                        <span className="transition duration-300 group-open:-rotate-180 text-slate-400">
-                            <svg fill="none" height="20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="20"><path d="M6 9l6 6 6-6"></path></svg>
-                        </span>
-                    </summary>
-                    <div className="px-4 pb-4 text-slate-600 space-y-4 border-t border-slate-100 pt-4 leading-relaxed bg-slate-50/50">
-                        <p>
-                            프로필 확인 후 적합한 상대방을 찾으면 주선자가 직접 연락을 드립니다. 매칭 제안 및 연락은 주로 <strong className="font-semibold text-slate-700">평일 오후 6시 ~ 10시</strong> 또는 <strong className="font-semibold text-slate-700">주말</strong>에 이루어질 예정입니다.
-                        </p>
-                    </div>
-                </details>
-            </div>
         </div>
     );
 }

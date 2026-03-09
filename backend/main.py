@@ -38,6 +38,7 @@ from schemas import (
     AIRecommendResult,
     SharedProfileRead,
     MatchRespondRequest,
+    DailyMatchingStatsResponse,
 )
 
 # ---------------------------------------------------------------------------
@@ -47,7 +48,7 @@ from schemas import (
 app = FastAPI(
     title="TwoDegrees API",
     description="소개팅 풀 등록 및 관리 API",
-    version="0.0.7",
+    version="1.0.0",
 )
 
 # 개발 편의를 위해 CORS 전체 허용 (운영 시 origins 제한 필요)
@@ -208,18 +209,23 @@ def authenticate_user(payload: AuthRequest, db: Session = Depends(get_db)):
 )
 def get_user_stats(db: Session = Depends(get_db)):
     """
-    현재 매칭풀에 활성화(is_active=True)된 유저들의 남녀 활동 비율을 반환합니다.
+    현재 매칭풀에 활성화(is_active=True)된 유저들의 남녀 활동 비율 및 전체 통계를 반환합니다.
     """
+    total_users = db.query(User).count()
+    total_matchings = db.query(Matching).count()
+    
     active_users = db.query(User).filter(User.is_active == True).all()
     male_count = sum(1 for u in active_users if u.gender == Gender.MALE)
     female_count = sum(1 for u in active_users if u.gender == Gender.FEMALE)
-    total = male_count + female_count
+    total_active = male_count + female_count
 
-    male_ratio = round((male_count / total * 100)) if total > 0 else 0
-    female_ratio = round((female_count / total * 100)) if total > 0 else 0
+    male_ratio = round((male_count / total_active * 100)) if total_active > 0 else 0
+    female_ratio = round((female_count / total_active * 100)) if total_active > 0 else 0
 
     return {
-        "total_active": total,
+        "total_active": total_active,
+        "total_users": total_users,
+        "total_matchings": total_matchings,
         "male_active": male_count,
         "female_active": female_count,
         "male_ratio": float(male_ratio),
@@ -582,6 +588,36 @@ def update_matching_status(
     db.refresh(matching)
     
     return _build_matching_response(matching, db)
+
+
+@app.get(
+    "/api/matchings/stats/daily",
+    response_model=DailyMatchingStatsResponse,
+    summary="날짜별 매칭 건수 통계",
+    tags=["matchings"],
+)
+def get_daily_matching_stats(db: Session = Depends(get_db)):
+    """
+    날짜별로 몇 건의 매칭이 발생했는지 통계를 반환합니다.
+    매칭 건수 = 해당 날짜에 생성된 Matching 레코드 수
+    """
+    from sqlalchemy import func
+    
+    # created_at의 날짜 부분만 추출하여 그룹화
+    # SQLite에서는 date(created_at) 함수 사용
+    stats = (
+        db.query(
+            func.date(Matching.created_at).label("date"),
+            func.count(Matching.id).label("count")
+        )
+        .group_by(func.date(Matching.created_at))
+        .order_by(func.date(Matching.created_at).desc())
+        .all()
+    )
+    
+    return {
+        "stats": [{"date": s.date, "count": s.count} for s in stats]
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -29,8 +29,8 @@ export default function AuthPage() {
 
         try {
             const { user_id } = await authenticateUser({ contact, password });
-            // 인증 성공 → 프로필 수정 페이지로 이동 (user_id를 URL에 포함)
-            router.push(`/edit/${user_id}`);
+            // 인증 성공 → 프로필 수정 페이지로 이동 (user_id를 쿼리 파라미터로 포함)
+            router.push(`/edit?user_id=${user_id}`);
         } catch (err) {
             setStatus("error");
             setErrorMsg(err instanceof Error ? err.message : "알 수 없는 오류");
@@ -38,8 +38,8 @@ export default function AuthPage() {
     };
 
     return (
-        <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-8">
-            <div className="w-full max-w-md space-y-6">
+        <main className="min-h-[100dvh] flex items-center justify-center px-4 py-8">
+            <div className="w-full space-y-6">
                 {/* 헤더 */}
                 <div className="text-center space-y-1">
                     <h1 className="text-slate-900 font-semibold text-2xl tracking-tight">
@@ -118,7 +118,7 @@ export default function AuthPage() {
                             <p className="text-center text-slate-500 text-sm">
                                 아직 등록하지 않으셨나요?{" "}
                                 <a
-                                    href="/"
+                                    href="/register"
                                     className="text-blue-600 font-semibold hover:underline"
                                 >
                                     소개팅 풀 등록하기
