@@ -123,14 +123,14 @@ class Matching(Base):
     
     user_a_token = Column(String(100), unique=True, default=lambda: str(uuid.uuid4()), nullable=True)
     user_b_token = Column(String(100), unique=True, default=lambda: str(uuid.uuid4()), nullable=True)
-    expires_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow() + timedelta(hours=24, minutes=5), nullable=True)
+    expires_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc) + timedelta(hours=24, minutes=5), nullable=True)
     
     ai_score = Column(Integer, nullable=True)
     ai_reason = Column(Text, nullable=True)
     
     is_contact_shared = Column(Boolean, nullable=False, default=False)
     
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("user_a_id", "user_b_id", name="uq_matching_user_a_b"),

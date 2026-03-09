@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import { getSharedProfile, respondSharedMatching } from "@/lib/api";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, MapPin, Briefcase, Ruler, Sparkles, CheckCircle2, XCircle, GraduationCap, Building2, Fingerprint, Church, Cigarette, Wine, Dumbbell, Palette } from "lucide-react";
+import { Clock, MapPin, Briefcase, Ruler, Sparkles, CheckCircle2, XCircle, GraduationCap, Building2, Fingerprint, Church, Cigarette, Wine, Dumbbell, Palette, Cake } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -30,6 +30,29 @@ export default function SharedProfilePage() {
     const [responded, setResponded] = useState<MatchStatus | null>(null);
     const [timeLeft, setTimeLeft] = useState<string>("");
     const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    const handleScroll = () => {
+        if (scrollRef.current) {
+            const scrollLeft = scrollRef.current.scrollLeft;
+            const width = scrollRef.current.offsetWidth;
+            const index = Math.round(scrollLeft / width);
+            if (index !== activePhotoIndex) {
+                setActivePhotoIndex(index);
+            }
+        }
+    };
+
+    const scrollToPhoto = (idx: number) => {
+        if (scrollRef.current) {
+            const width = scrollRef.current.offsetWidth;
+            scrollRef.current.scrollTo({
+                left: width * idx,
+                behavior: "smooth"
+            });
+            setActivePhotoIndex(idx);
+        }
+    };
 
     useEffect(() => {
         if (token) {
@@ -45,7 +68,8 @@ export default function SharedProfilePage() {
 
         const updateTimer = () => {
             const now = new Date().getTime();
-            const end = new Date(profile.expires_at!).getTime();
+            const expiryStr = profile.expires_at!;
+            const end = new Date(expiryStr.endsWith('Z') || expiryStr.includes('+') ? expiryStr : expiryStr + 'Z').getTime();
             const diff = end - now;
 
             if (diff <= 0) {
@@ -57,7 +81,11 @@ export default function SharedProfilePage() {
             const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-            setTimeLeft(`${h}시간 ${m}분 ${s}초 남음`);
+            const hStr = h.toString();
+            const mStr = m.toString().padStart(2, '0');
+            const sStr = s.toString().padStart(2, '0');
+
+            setTimeLeft(`${hStr}:${mStr}:${sStr}`);
         };
 
         updateTimer();
@@ -116,59 +144,66 @@ export default function SharedProfilePage() {
             <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm flex flex-col">
                 {/* Expiration Banner */}
                 {profile.expires_at && (
-                    <div className="bg-blue-500 px-4 py-2.5 flex items-center justify-between border-b border-blue-600 shadow-sm">
+                    <div className="bg-baby-blue px-4 py-2.5 flex items-center justify-between border-b border-blue-200/50 shadow-sm font-nanum">
                         <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-white/90" />
-                            <span className="text-[11px] text-white font-bold uppercase tracking-tight">
+                            <Clock className="w-4 h-4 text-blue-700/80" />
+                            <span className="text-[11px] text-blue-900 font-bold uppercase tracking-tight">
                                 남은 시간
                             </span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-bold text-white tabular-nums tracking-wider font-mono">
+                            <span className="text-sm font-extrabold text-blue-900 tabular-nums tracking-wider">
                                 {timeLeft}
                             </span>
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-200 animate-pulse" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                         </div>
                     </div>
                 )}
 
                 <div className="flex-1 overflow-y-auto pb-4 select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
-                    {/* Photo Gallery with Thumbnails */}
-                    <div className="relative aspect-[3/4] bg-slate-900 overflow-hidden" style={{ WebkitTouchCallout: 'none' }}>
+                    {/* Photo Gallery with Swipe Capability */}
+                    <div
+                        ref={scrollRef}
+                        className="relative aspect-[3/4] bg-slate-900 overflow-x-auto flex snap-x snap-mandatory scrollbar-hide"
+                        onScroll={handleScroll}
+                        style={{ WebkitTouchCallout: 'none', scrollBehavior: 'smooth' }}
+                    >
                         {profile.photo_urls && profile.photo_urls.length > 0 ? (
-                            <>
-                                {/* Blurred background for a premium look when containing images */}
-                                <Image
-                                    src={profile.photo_urls[activePhotoIndex] || profile.photo_urls[0]}
-                                    alt=""
-                                    fill
-                                    className="object-cover blur-2xl opacity-40 scale-110"
-                                    draggable={false}
-                                />
-                                <Image
-                                    src={profile.photo_urls[activePhotoIndex] || profile.photo_urls[0]}
-                                    alt={`Profile Photo ${activePhotoIndex + 1}`}
-                                    fill
-                                    className="object-contain transition-all duration-300 relative z-10"
-                                    priority
-                                    draggable={false}
-                                />
-                                {/* Touch Prevention Overlay */}
-                                <div
-                                    className="absolute inset-0 z-20 bg-transparent"
-                                    style={{ WebkitTouchCallout: 'none' }}
-                                    onContextMenu={(e) => e.preventDefault()}
-                                />
-                            </>
+                            profile.photo_urls.map((url, idx) => (
+                                <div key={idx} className="relative w-full h-full flex-shrink-0 snap-center">
+                                    {/* Blurred background for a premium look */}
+                                    <Image
+                                        src={url}
+                                        alt=""
+                                        fill
+                                        className="object-cover blur-2xl opacity-40 scale-110"
+                                        draggable={false}
+                                    />
+                                    <Image
+                                        src={url}
+                                        alt={`Profile Photo ${idx + 1}`}
+                                        fill
+                                        className="object-contain transition-all duration-300 relative z-10"
+                                        priority={idx === 0}
+                                        draggable={false}
+                                    />
+                                    {/* Touch Prevention Overlay - Moved inside each item to allow container scrolling */}
+                                    <div
+                                        className="absolute inset-0 z-20 bg-transparent"
+                                        style={{ WebkitTouchCallout: 'none' }}
+                                        onContextMenu={(e) => e.preventDefault()}
+                                    />
+                                </div>
+                            ))
                         ) : (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 text-slate-400">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 text-slate-400 w-full h-full">
                                 <Sparkles className="w-8 h-8 mb-2 opacity-50" />
                                 <span className="text-xs font-medium">프로필 사진이 없습니다.</span>
                             </div>
                         )}
 
-                        {/* Information Belt (Stripe) Overlay */}
-                        <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-black/40 backdrop-blur-md text-white border-t border-white/10 z-10">
+                        {/* Information Belt (Stripe) Overlay - Fixed relative to the gallery area */}
+                        <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-black/40 backdrop-blur-md text-white border-t border-white/10 z-30 pointer-events-none">
                             <div className="flex items-baseline gap-2">
                                 <h1 className="text-2xl font-bold tracking-tight">{profile.age}세</h1>
                                 <span className="text-xs font-medium opacity-40">|</span>
@@ -183,7 +218,7 @@ export default function SharedProfilePage() {
                             {profile.photo_urls.map((url, idx) => (
                                 <div
                                     key={idx}
-                                    onClick={() => setActivePhotoIndex(idx)}
+                                    onClick={() => scrollToPhoto(idx)}
                                     className={`relative w-16 h-20 rounded-lg overflow-hidden shrink-0 cursor-pointer transition-all ${activePhotoIndex === idx
                                         ? "ring-2 ring-blue-500 ring-offset-2 scale-105"
                                         : "opacity-60 grayscale-[30%] hover:opacity-100"
@@ -211,7 +246,7 @@ export default function SharedProfilePage() {
                         {profile.photo_urls && profile.photo_urls.length > 1 && (
                             <p className="text-[10px] text-slate-400 flex items-center gap-1">
                                 <Sparkles className="w-3 h-3" />
-                                사진을 탭하여 다른 사진을 볼 수 있습니다.
+                                사진을 옆으로 밀어서 볼 수 있습니다.
                             </p>
                         )}
                         <p className="text-[9px] text-slate-400 leading-tight">
@@ -223,6 +258,7 @@ export default function SharedProfilePage() {
                         {/* Info Grid */}
                         <div className="grid grid-cols-2 gap-3">
                             <InfoItem icon={<Briefcase />} label="직업" value={profile.job} />
+                            <InfoItem icon={<Cake />} label="출생연도" value={`${profile.birth_year}년생`} />
                             <InfoItem icon={<MapPin />} label="주 활동지역" value={profile.active_area} />
                             <InfoItem icon={<Ruler />} label="키" value={profile.height ? `${profile.height}cm` : null} />
                             <InfoItem icon={<GraduationCap />} label="학력" value={profile.education} />

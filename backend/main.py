@@ -767,9 +767,14 @@ def get_shared_profile(token: str, db: Session = Depends(get_db)):
     if not matching:
         raise HTTPException(status_code=404, detail="유효하지 않은 링크입니다.")
 
-    # 1. 만료 시간 체크
-    if matching.expires_at and matching.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(status_code=410, detail="링크가 만료되었습니다.")
+    # 1. 만료 시간 체크 (timezone-aware comparison)
+    if matching.expires_at:
+        expires_at_utc = matching.expires_at
+        if expires_at_utc.tzinfo is None:
+            expires_at_utc = expires_at_utc.replace(tzinfo=timezone.utc)
+        
+        if expires_at_utc < datetime.now(timezone.utc):
+            raise HTTPException(status_code=410, detail="링크가 만료되었습니다.")
 
     # 2. 이미 응답했는지 체크
     is_user_a = (matching.user_a_token == token)
@@ -789,6 +794,7 @@ def get_shared_profile(token: str, db: Session = Depends(get_db)):
 
     return SharedProfileRead(
         age=age,
+        birth_year=other_user.birth_year,
         job=other_user.job,
         height=other_user.height,
         active_area=other_user.active_area,
@@ -827,9 +833,14 @@ def respond_shared_matching(
     if not matching:
         raise HTTPException(status_code=404, detail="유효하지 않은 링크입니다.")
 
-    # 만료 체크
-    if matching.expires_at and matching.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(status_code=410, detail="링크가 만료되었습니다.")
+    # 만료 체크 (timezone-aware comparison)
+    if matching.expires_at:
+        expires_at_utc = matching.expires_at
+        if expires_at_utc.tzinfo is None:
+            expires_at_utc = expires_at_utc.replace(tzinfo=timezone.utc)
+            
+        if expires_at_utc < datetime.now(timezone.utc):
+            raise HTTPException(status_code=410, detail="링크가 만료되었습니다.")
 
     is_user_a = (matching.user_a_token == token)
     

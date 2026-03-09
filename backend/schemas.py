@@ -238,6 +238,7 @@ class AIRecommendResult(BaseModel):
 class SharedProfileRead(BaseModel):
     """24시간 프로필 공유 링크를 통해 조회되는 상대방의 제한된 프로필 정보"""
     age: int
+    birth_year: int
     job: str
     height: Optional[int] = None
     active_area: Optional[str] = None
