@@ -200,9 +200,6 @@ export default function HomePage() {
 
           <div className="pt-12 text-center border-t border-slate-200">
             <div className="flex flex-col items-center gap-4">
-              <p className="text-slate-500 text-sm font-medium italic">
-                "누군가 알고 있는 사람이기에, 더 믿을 수 있습니다."
-              </p>
               <p className="text-slate-400 text-xs">
                 © 2026 TwoDegrees. All rights reserved.
               </p>

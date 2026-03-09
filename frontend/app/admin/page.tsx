@@ -911,16 +911,16 @@ export default function AdminPage() {
                 {activeTab === "USERS" && (
                     <div className="space-y-6">
                         {/* 통계 카드 */}
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-3 gap-2">
                             {[
                                 { label: "전체", value: users.length, color: "text-slate-900" },
                                 { label: "매칭 활성", value: activeCount, color: "text-blue-600" },
                                 { label: "활성 (남 / 여)", value: `${maleCount} / ${femaleCount}`, color: "text-slate-700" },
                             ].map(({ label, value, color }) => (
                                 <Card key={label} className="shadow-sm">
-                                    <CardContent className="pt-4 pb-4 text-center">
-                                        <p className={`text-2xl font-bold ${color}`}>{value}</p>
-                                        <p className="text-slate-500 text-xs mt-1">{label}</p>
+                                    <CardContent className="py-3 px-1 text-center">
+                                        <p className={`text-lg font-bold ${color} truncate`}>{value}</p>
+                                        <p className="text-slate-500 text-[10px] mt-0.5 break-keep leading-tight">{label}</p>
                                     </CardContent>
                                 </Card>
                             ))}
