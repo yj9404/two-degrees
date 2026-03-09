@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 import bcrypt
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, cast, Date
 
 from database import Base, engine, get_db
 from models import Gender, User, Matching, MatchStatus
@@ -601,22 +601,22 @@ def get_daily_matching_stats(db: Session = Depends(get_db)):
     날짜별로 몇 건의 매칭이 발생했는지 통계를 반환합니다.
     매칭 건수 = 해당 날짜에 생성된 Matching 레코드 수
     """
-    from sqlalchemy import func
+    # cast(..., Date)는 SQLite와 PostgreSQL 모두에서 작동하는 표준 방식입니다.
+    date_col = cast(Matching.created_at, Date).label("date")
     
-    # created_at의 날짜 부분만 추출하여 그룹화
-    # SQLite에서는 date(created_at) 함수 사용
     stats = (
         db.query(
-            func.date(Matching.created_at).label("date"),
+            date_col,
             func.count(Matching.id).label("count")
         )
-        .group_by(func.date(Matching.created_at))
-        .order_by(func.date(Matching.created_at).desc())
+        .group_by(date_col)
+        .order_by(date_col.desc())
         .all()
     )
     
+    # s.date가 date 객체일 수 있으므로 명시적으로 문자열 변환
     return {
-        "stats": [{"date": s.date, "count": s.count} for s in stats]
+        "stats": [{"date": str(s.date), "count": s.count} for s in stats]
     }
 
 
