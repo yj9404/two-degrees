@@ -8,5 +8,5 @@ __pycache__/
 env/
 venv/
 ENV/
-twodegrees.db
+*.db
 server.log

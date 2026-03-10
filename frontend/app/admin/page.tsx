@@ -304,14 +304,46 @@ function MatchingDetailDialog({
                         매칭이 성사되지 않았습니다. {isExpired ? "(기한 만료)" : "(거절됨)"}
                     </p>
                 </div>
-                <Button
-                    variant="outline"
-                    className="w-full h-12 gap-2 border-slate-200 hover:bg-slate-50"
-                    onClick={() => copyToClipboard(failedMsg, "거절 안내")}
-                >
-                    <Copy className="w-4 h-4" />
-                    거절/실패 안내 메시지 복사
-                </Button>
+                <div className="grid grid-cols-1 gap-3">
+                    <Button
+                        variant="outline"
+                        className="h-auto py-4 justify-start gap-3 border-blue-200 hover:bg-blue-50"
+                        onClick={() => copyToClipboard(failedMsg, `${matching.user_a_info.name}(A)에게 보낼`)}
+                    >
+                        <MessageSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                        <div className="text-left">
+                            <p className="text-xs font-bold text-slate-900">{matching.user_a_info.name}(A)에게 전달할 메시지</p>
+                            <p className="text-[10px] text-slate-500">거절/종료 안내 메시지</p>
+                        </div>
+                    </Button>
+                    <Button
+                        variant="outline"
+                        className="h-auto py-4 justify-start gap-3 border-pink-200 hover:bg-pink-50"
+                        onClick={() => copyToClipboard(failedMsg, `${matching.user_b_info.name}(B)에게 보낼`)}
+                    >
+                        <MessageSquare className="w-4 h-4 text-pink-600 shrink-0" />
+                        <div className="text-left">
+                            <p className="text-xs font-bold text-slate-900">{matching.user_b_info.name}(B)에게 전달할 메시지</p>
+                            <p className="text-[10px] text-slate-500">거절/종료 안내 메시지</p>
+                        </div>
+                    </Button>
+                </div>
+                <div className="pt-2">
+                    <Button
+                        className={`w-full h-11 font-bold transition-all ${matching.is_contact_shared
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            : "bg-slate-600 hover:bg-slate-700 text-white shadow-sm"
+                            }`}
+                        onClick={handleMarkContactShared}
+                        disabled={updatingContact || matching.is_contact_shared}
+                    >
+                        {matching.is_contact_shared ? (
+                            <><CheckCircle2 className="w-4 h-4 mr-2" />메시지 전달 완료됨 (매칭종료)</>
+                        ) : (
+                            updatingContact ? "처리 중..." : "메시지 전달 완료 처리 (매칭종료)"
+                        )}
+                    </Button>
+                </div>
             </div>
         );
     };
@@ -363,10 +395,10 @@ function MatchingDetailDialog({
                         {matching.is_contact_shared ? (
                             <>
                                 <CheckCircle2 className="w-4 h-4 mr-2" />
-                                연락처 전달 완료됨
+                                연락처 전달 완료됨 (매칭종료)
                             </>
                         ) : (
-                            updatingContact ? "처리 중..." : "연락처 전달 완료 처리"
+                            updatingContact ? "처리 중..." : "연락처 전달 완료 처리 (매칭종료)"
                         )}
                     </Button>
                 </div>
@@ -1087,7 +1119,9 @@ export default function AdminPage() {
                                         <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                                             <span>생성: {match.created_at ? new Date(match.created_at).toLocaleString() : "-"}</span>
                                             <div className="flex items-center gap-1.5">
-                                                {(match.user_a_status === "ACCEPTED" && match.user_b_status === "ACCEPTED") ? (
+                                                {match.is_contact_shared ? (
+                                                    <span className="font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">매칭종료 ✓</span>
+                                                ) : (match.user_a_status === "ACCEPTED" && match.user_b_status === "ACCEPTED") ? (
                                                     <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">성사 완료! 🎉</span>
                                                 ) : (match.user_a_status === "REJECTED" || match.user_b_status === "REJECTED") ? (
                                                     <span className="font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">매칭 실패</span>
