@@ -766,12 +766,9 @@ def mark_matching_contact_shared(
     if not matching:
         raise HTTPException(status_code=404, detail="매칭 정보를 찾을 수 없습니다.")
 
-    # 양쪽 ACCEPTED 여부 확인
-    if matching.user_a_status != MatchStatus.ACCEPTED or matching.user_b_status != MatchStatus.ACCEPTED:
-        raise HTTPException(
-            status_code=400,
-            detail="양쪽 유저가 모두 수락한 상태에서만 연락처 공유 완료 처리가 가능합니다."
-        )
+    # 양측 유저 수락 시 비활성화 처리 (수동 체크 시점에 수행)
+    if matching.user_a_status == MatchStatus.ACCEPTED and matching.user_b_status == MatchStatus.ACCEPTED:
+        db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).update({"is_active": False}, synchronize_session=False)
 
     matching.is_contact_shared = True
     db.commit()
@@ -903,9 +900,7 @@ def respond_shared_matching(
         # 토큰 즉시 만료 처리 (재사용 방지)
         matching.user_b_token = None
 
-    # 양쪽 모두 수락 시 비활성화 로직
-    if matching.user_a_status == MatchStatus.ACCEPTED and matching.user_b_status == MatchStatus.ACCEPTED:
-        db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).update({"is_active": False}, synchronize_session=False)
+    # 비활성화 로직은 관리자가 '연락처 전달 완료' 버튼을 누를 때 수행하도록 변경됨
 
     db.commit()
     return {"message": "정상적으로 처리되었습니다.", "status": payload.status}
