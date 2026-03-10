@@ -68,16 +68,16 @@ export default function HomePage() {
       <section className="py-16 px-6 bg-white">
         <div className="space-y-10">
           <div className="text-center space-y-3">
-            <h2 className="text-slate-900 font-bold text-2xl sm:text-3xl">왜 2단계(Two Degrees)인가요?</h2>
-            <p className="text-slate-500 text-sm sm:text-base font-medium">우리가 안전한 네트워크에 집착하는 이유</p>
+            <h2 className="text-slate-900 font-bold text-2xl">왜 2단계(Two Degrees)인가요?</h2>
+            <p className="text-slate-500 text-sm font-medium">우리가 안전한 네트워크에 집착하는 이유</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-center">
+          <div className="grid grid-cols-1 gap-6">
             <div className="space-y-4">
               <div className="p-6 bg-slate-50 rounded-2xl space-y-3 border border-slate-100">
                 <div className="text-3xl">🌍</div>
                 <h3 className="text-slate-900 font-bold text-lg">6단계 분리의 법칙(Six Degrees of Separation)</h3>
-                <p className="text-slate-600 text-sm leading-relaxed break-keep">
+                <p className="text-slate-600 text-sm leading-relaxed break-keep font-medium">
                   지구상의 모든 사람은 평균 6명을 거치면 아는 사이가 된다고 합니다. 하지만 모르는 6명 사이의 연결은 "신뢰"를 보장하지 못합니다.
                 </p>
               </div>
@@ -87,7 +87,7 @@ export default function HomePage() {
                 </div>
                 <div className="text-3xl">🤝</div>
                 <h3 className="text-blue-900 font-bold text-lg">TwoDegrees의 약속</h3>
-                <p className="text-blue-800 text-sm leading-relaxed break-keep font-medium">
+                <p className="text-blue-800 text-sm leading-relaxed break-keep font-bold">
                   우리는 오직 "내 지인"과 "내 지인의 지인"까지만 선별하여 연결합니다.
                 </p>
               </div>
@@ -100,42 +100,42 @@ export default function HomePage() {
       <section className="py-16 px-6">
         <div className="space-y-12">
           <div className="text-center space-y-3">
-            <h3 className="text-slate-900 font-bold text-xl sm:text-2xl">신뢰를 만드는 세 가지 가치</h3>
+            <h3 className="text-slate-900 font-bold text-xl">신뢰를 만드는 세 가지 가치</h3>
             <p className="text-slate-500 text-sm">TwoDegrees가 다른 서비스와 차별화되는 점입니다.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <Card className="border-0 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden bg-white group hover:-translate-y-2 transition-transform">
+          <div className="grid grid-cols-1 gap-8">
+            <Card className="border-0 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden bg-white group transition-transform">
               <CardContent className="p-8 space-y-4">
                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                   <ShieldCheck size={24} />
                 </div>
                 <h4 className="text-slate-900 font-bold">Verified Network</h4>
-                <p className="text-slate-500 text-sm leading-relaxed break-keep">
+                <p className="text-slate-500 text-sm leading-relaxed break-keep font-medium">
                   실명이 확인된 지인 추천을 통해서만 가입할 수 있는 폐쇄형 네트워크로 운영됩니다.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden bg-white group hover:-translate-y-2 transition-transform">
+            <Card className="border-0 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden bg-white group transition-transform">
               <CardContent className="p-8 space-y-4">
                 <div className="w-12 h-12 bg-pink-50 text-pink-600 rounded-2xl flex items-center justify-center group-hover:bg-pink-600 group-hover:text-white transition-colors">
                   <Lock size={24} />
                 </div>
                 <h4 className="text-slate-900 font-bold">Privacy First</h4>
-                <p className="text-slate-500 text-sm leading-relaxed break-keep">
+                <p className="text-slate-500 text-sm leading-relaxed break-keep font-medium">
                   프로필은 매칭 상대에게만 공개되며, 매칭 제안은 24시간 동안만 유효합니다.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden bg-white group hover:-translate-y-2 transition-transform">
+            <Card className="border-0 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden bg-white group transition-transform">
               <CardContent className="p-8 space-y-4">
                 <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
                   <Sparkles size={24} />
                 </div>
                 <h4 className="text-slate-900 font-bold">AI + Human</h4>
-                <p className="text-slate-500 text-sm leading-relaxed break-keep">
+                <p className="text-slate-500 text-sm leading-relaxed break-keep font-medium">
                   정교한 알고리즘과 주선자의 섬세한 안목을 결합하여 최적의 인연을 찾습니다.
                 </p>
               </CardContent>
@@ -150,16 +150,16 @@ export default function HomePage() {
 
         <div className="space-y-16 relative">
           <div className="text-center space-y-3">
-            <h3 className="text-white font-bold text-2xl sm:text-3xl">매칭은 이렇게 진행됩니다</h3>
-            <p className="text-slate-400 text-sm sm:text-base">심플하지만 철저한 등록부터 성사까지의 흐름</p>
+            <h3 className="text-white font-bold text-2xl">매칭은 이렇게 진행됩니다</h3>
+            <p className="text-slate-400 text-sm">심플하지만 철저한 등록부터 성사까지의 흐름</p>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 gap-y-12 gap-x-6">
             {[
               { icon: <UserPlus />, label: "등록", desc: "내 정보를 등록합니다" },
-              { icon: <Search />, label: "분석", desc: "AI와 관리자가 교차검증을 통한 분석을 합니다" },
+              { icon: <Search />, label: "분석", desc: "AI와 관리자가 교차분석을 합니다" },
               { icon: <MessageCircle />, label: "제안", desc: "검증된 프로필을 제안합니다" },
-              { icon: <Heart />, label: "성사", desc: "상호 수락 시 연락처를 교환합니다" },
+              { icon: <Heart />, label: "성사", desc: "상호 수락 시 연락처 교환" },
             ].map((step, i) => (
               <div key={i} className="flex flex-col items-center text-center space-y-4 group">
                 <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 transition-colors">
@@ -167,13 +167,8 @@ export default function HomePage() {
                 </div>
                 <div className="space-y-1">
                   <div className="font-bold text-lg">{step.label}</div>
-                  <p className="text-slate-400 text-xs break-keep px-2">{step.desc}</p>
+                  <p className="text-slate-400 text-[11px] break-keep px-1 leading-relaxed">{step.desc}</p>
                 </div>
-                {i < 3 && (
-                  <div className="hidden lg:block absolute translate-x-[90px] translate-y-8 text-slate-700">
-                    <ArrowRight size={20} />
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -192,7 +187,7 @@ export default function HomePage() {
       <section className="py-20 px-6">
         <div className="space-y-12">
           <div className="text-center space-y-3">
-            <h3 className="text-slate-900 font-bold text-2xl sm:text-3xl">자주 묻는 질문</h3>
+            <h3 className="text-slate-900 font-bold text-2xl">자주 묻는 질문</h3>
             <p className="text-slate-500 text-sm">서비스 이용에 대해 궁금한 점을 확인해 보세요.</p>
           </div>
 

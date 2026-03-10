@@ -48,7 +48,7 @@ from schemas import (
 app = FastAPI(
     title="TwoDegrees API",
     description="소개팅 풀 등록 및 관리 API",
-    version="1.0.0",
+    version="1.0.1",
 )
 
 # 개발 편의를 위해 CORS 전체 허용 (운영 시 origins 제한 필요)
@@ -599,25 +599,33 @@ def update_matching_status(
 def get_daily_matching_stats(db: Session = Depends(get_db)):
     """
     날짜별로 몇 건의 매칭이 발생했는지 통계를 반환합니다.
-    매칭 건수 = 해당 날짜에 생성된 Matching 레코드 수
     """
-    # cast(..., Date)는 SQLite와 PostgreSQL 모두에서 작동하는 표준 방식입니다.
-    date_col = cast(Matching.created_at, Date).label("date")
-    
-    stats = (
-        db.query(
-            date_col,
-            func.count(Matching.id).label("count")
+    try:
+        # 1. 표준 CAST 방식 시도 (PostgreSQL 및 최신 SQLite용)
+        date_col = cast(Matching.created_at, Date).label("date")
+        stats = (
+            db.query(date_col, func.count(Matching.id).label("count"))
+            .group_by(date_col)
+            .order_by(date_col.desc())
+            .all()
         )
-        .group_by(date_col)
-        .order_by(date_col.desc())
-        .all()
-    )
-    
-    # s.date가 date 객체일 수 있으므로 명시적으로 문자열 변환
-    return {
-        "stats": [{"date": str(s.date), "count": s.count} for s in stats]
-    }
+        return {"stats": [{"date": str(s.date), "count": s.count} for s in stats if s.date]}
+    except Exception as e:
+        db.rollback()
+        try:
+            # 2. SQLite 전용 strftime 방식 시도 (일부 로컬 환경용)
+            date_col = func.strftime('%Y-%m-%d', Matching.created_at).label("date")
+            stats = (
+                db.query(date_col, func.count(Matching.id).label("count"))
+                .group_by(date_col)
+                .order_by(date_col.desc())
+                .all()
+            )
+            return {"stats": [{"date": str(s.date), "count": s.count} for s in stats if s.date]}
+        except Exception as e2:
+            db.rollback()
+            print(f"Daily stats fallback error: {e2}")
+            return {"stats": []}
 
 
 # ---------------------------------------------------------------------------

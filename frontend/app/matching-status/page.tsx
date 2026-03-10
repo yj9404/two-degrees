@@ -56,7 +56,7 @@ export default function MatchingStatusPage() {
                                     </div>
                                     <div className="text-right">
                                         <div className="text-[15px] font-black text-pink-600 leading-none">
-                                            {item.count}<span className="text-[10px] font-bold text-pink-400 ml-1">Matching</span>
+                                            {item.count}<span className="text-[10px] font-bold text-pink-400 ml-1">{item.count === 1 ? 'Matching' : 'Matchings'}</span>
                                         </div>
                                     </div>
                                 </CardContent>
