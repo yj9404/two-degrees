@@ -223,6 +223,13 @@ export async function markMatchingContactShared(matchingId: string): Promise<Mat
     });
 }
 
+/** PATCH /api/matchings/{matching_id}/refresh-expiry – 매칭 링크 만료 기한 갱신 (관리자) */
+export async function refreshMatchingExpiry(matchingId: string): Promise<MatchingResponse> {
+    return apiFetch(`/api/matchings/${matchingId}/refresh-expiry`, {
+        method: "PATCH",
+    });
+}
+
 /** POST /api/matchings/ai-recommend – AI 추천 (관리자) */
 export async function getAIRecommendations(
     payload: AIRecommendRequest

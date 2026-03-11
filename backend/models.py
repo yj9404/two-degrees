@@ -123,7 +123,7 @@ class Matching(Base):
     
     user_a_token = Column(String(100), unique=True, default=lambda: str(uuid.uuid4()), nullable=True)
     user_b_token = Column(String(100), unique=True, default=lambda: str(uuid.uuid4()), nullable=True)
-    expires_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc) + timedelta(hours=24, minutes=5), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
     
     ai_score = Column(Integer, nullable=True)
     ai_reason = Column(Text, nullable=True)

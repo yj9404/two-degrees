@@ -786,6 +786,38 @@ def mark_matching_contact_shared(
 
 
 # ---------------------------------------------------------------------------
+# PATCH /api/matchings/{matching_id}/refresh-expiry – 매칭 링크 만료 기한 갱신
+# ---------------------------------------------------------------------------
+
+@app.patch(
+    "/api/matchings/{matching_id}/refresh-expiry",
+    response_model=MatchingResponse,
+    summary="매칭 링크 만료 기한 갱신 (관리자)",
+    tags=["matchings"],
+)
+def refresh_matching_expiry(
+    matching_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """
+    관리자가 매칭 제안 메시지를 복사할 때 호출됩니다.
+    만료 기한을 현재 시간으로부터 24시간 후로 갱신합니다.
+    """
+    matching = db.query(Matching).filter(Matching.id == matching_id).first()
+    if not matching:
+        raise HTTPException(status_code=404, detail="매칭 정보를 찾을 수 없습니다.")
+
+    # 이미 유효기간이 설정된 경우(첫 복사 이후)에는 갱신하지 않음
+    if matching.expires_at is None:
+        matching.expires_at = datetime.now(timezone.utc) + timedelta(hours=24, minutes=1)
+        db.commit()
+        db.refresh(matching)
+
+    return _build_matching_response(matching, db)
+
+
+# ---------------------------------------------------------------------------
 # Shared Profile (Link-based) API
 # ---------------------------------------------------------------------------
 

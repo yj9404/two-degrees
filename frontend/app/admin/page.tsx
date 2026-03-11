@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, deleteMatching, markMatchingContactShared } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry } from "@/lib/api";
 import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult } from "@/types/user";
 import { Button } from "@/components/ui/button";
@@ -222,6 +222,23 @@ function MatchingDetailDialog({
 
     const [updatingContact, setUpdatingContact] = useState(false);
 
+    const handleCopyAndRefresh = async (text: string, label: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            const wasNotSet = !matching.expires_at;
+            const updated = await refreshMatchingExpiry(matching.id);
+            onUpdate(updated);
+
+            if (wasNotSet && updated.expires_at) {
+                alert(`${label} 메시지가 복사되었습니다.\n지금부터 24시간 동안 링크가 유효합니다.`);
+            } else {
+                alert(`${label} 메시지가 복사되었습니다.`);
+            }
+        } catch (err) {
+            alert("처리 중 에러가 발생했습니다.");
+        }
+    };
+
     const copyToClipboard = async (text: string, label: string) => {
         try {
             await navigator.clipboard.writeText(text);
@@ -269,7 +286,7 @@ function MatchingDetailDialog({
                         <Button
                             variant="outline"
                             className="flex flex-col h-auto py-3 gap-1 border-blue-200 bg-blue-50/30 hover:bg-blue-50"
-                            onClick={() => copyToClipboard(pendingMsg(matching.user_a_token || ""), `${matching.user_a_info.name}(A)용`)}
+                            onClick={() => handleCopyAndRefresh(pendingMsg(matching.user_a_token || ""), `${matching.user_a_info.name}(A)용`)}
                         >
                             <div className="flex items-center gap-1.5 text-blue-600 font-bold mb-1">
                                 <Copy className="w-3.5 h-3.5" />
@@ -280,7 +297,7 @@ function MatchingDetailDialog({
                         <Button
                             variant="outline"
                             className="flex flex-col h-auto py-3 gap-1 border-pink-200 bg-pink-50/30 hover:bg-pink-50"
-                            onClick={() => copyToClipboard(pendingMsg(matching.user_b_token || ""), `${matching.user_b_info.name}(B)용`)}
+                            onClick={() => handleCopyAndRefresh(pendingMsg(matching.user_b_token || ""), `${matching.user_b_info.name}(B)용`)}
                         >
                             <div className="flex items-center gap-1.5 text-pink-600 font-bold mb-1">
                                 <Copy className="w-3.5 h-3.5" />
@@ -455,11 +472,14 @@ function MatchingDetailDialog({
                     </div>
 
                     {/* 공통 정보 (기한 등) */}
-                    {!isSuccess && !isFailed && matching.expires_at && (
-                        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-2.5 rounded text-[11px] justify-center">
+                    {!isSuccess && !isFailed && (
+                        <div className={`flex items-center gap-2 p-2.5 rounded text-[11px] justify-center ${matching.expires_at ? 'text-amber-600 bg-amber-50' : 'text-slate-500 bg-slate-50'}`}>
                             <Clock className="w-3.5 h-3.5" />
-                            <span>링크 만료 기한: {matching.expires_at ? new Date(matching.expires_at).toLocaleString() : "-"}</span>
-                            {isExpired && <span className="font-bold underline ml-1">(이미 만료됨)</span>}
+                            {matching.expires_at ? (
+                                <span>링크 만료 기한: {new Date(matching.expires_at).toLocaleString()} {isExpired && <span className="font-bold underline ml-1">(이미 만료됨)</span>}</span>
+                            ) : (
+                                <span>링크 유효기간이 아직 설정되지 않았습니다 (메시지 복사 시 24시간 설정)</span>
+                            )}
                         </div>
                     )}
                 </div>
