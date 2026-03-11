@@ -159,6 +159,12 @@ function EditProfileContent() {
         setSaveStatus("loading");
         setErrorMsg("");
 
+        if (!form.photo_urls || form.photo_urls.length === 0) {
+            setSaveStatus("error");
+            setErrorMsg("프로필 사진을 최소 1장 이상 등록해 주세요.");
+            return;
+        }
+
         try {
             const raw = { ...form, is_active: isActive };
             const cleanedForm: UserUpdatePayload = {};
@@ -308,6 +314,9 @@ function EditProfileContent() {
                         <Field label="소개해 준 지인 이름" required hint="신원 보증용. 실명을 입력해 주세요.">
                             <Input id="edit-referrer_name" name="referrer_name" value={form.referrer_name ?? ""} onChange={handleChange} required />
                         </Field>
+                        <Field label="프로필 사진" required>
+                            <ImageUploader value={form.photo_urls ?? []} onChange={(urls) => setForm((prev) => ({ ...prev, photo_urls: urls }))} />
+                        </Field>
                     </SectionCard>
 
                     <SectionCard title="💌 상대방 조건" description="원하는 상대방의 조건을 자유롭게 작성해 주세요.">
@@ -383,9 +392,6 @@ function EditProfileContent() {
                         <Field label="취미"><Input id="edit-hobbies" name="hobbies" value={form.hobbies ?? ""} onChange={handleChange} /></Field>
                         <Field label="자기소개"><Textarea id="edit-intro" name="intro" rows={3} value={form.intro ?? ""} onChange={handleChange} /></Field>
                         <Field label="인스타그램 아이디"><Input id="edit-instagram_id" name="instagram_id" value={form.instagram_id ?? ""} onChange={handleChange} /></Field>
-                        <Field label="프로필 사진">
-                            <ImageUploader value={form.photo_urls ?? []} onChange={(urls) => setForm((prev) => ({ ...prev, photo_urls: urls }))} />
-                        </Field>
                     </SectionCard>
 
                     {saveStatus === "error" && <p className="text-red-500 text-sm text-center">{errorMsg}</p>}

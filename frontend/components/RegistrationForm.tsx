@@ -146,6 +146,12 @@ export default function RegistrationForm() {
             return;
         }
 
+        if (!form.photo_urls || form.photo_urls.length === 0) {
+            setStatus("error");
+            setErrorMsg("프로필 사진을 최소 1장 이상 등록해 주세요.");
+            return;
+        }
+
         try {
             const cleaned: Partial<UserCreatePayload> = {};
             for (const [k, v] of Object.entries(form)) {
@@ -309,6 +315,14 @@ export default function RegistrationForm() {
                             required
                         />
                     </Field>
+
+                    {/* 프로필 사진 */}
+                    <Field label="프로필 사진" required>
+                        <ImageUploader
+                            value={form.photo_urls ?? []}
+                            onChange={(urls) => setForm((prev) => ({ ...prev, photo_urls: urls }))}
+                        />
+                    </Field>
                 </SectionCard>
 
                 {/* ② 상대방 조건 */}
@@ -400,6 +414,7 @@ export default function RegistrationForm() {
                         )}
                     </Field>
                 </SectionCard>
+
 
                 {/* ③ 선택 정보 */}
                 <SectionCard
@@ -543,13 +558,7 @@ export default function RegistrationForm() {
                         />
                     </Field>
 
-                    {/* 프로필 사진 */}
-                    <Field label="프로필 사진">
-                        <ImageUploader
-                            value={form.photo_urls ?? []}
-                            onChange={(urls) => setForm((prev) => ({ ...prev, photo_urls: urls }))}
-                        />
-                    </Field>
+
                 </SectionCard>
 
                 {/* 에러 메시지 */}
@@ -566,6 +575,6 @@ export default function RegistrationForm() {
                     {status === "loading" ? "등록 중..." : "소개팅 풀 등록하기"}
                 </Button>
             </form>
-        </div>
+        </div >
     );
 }

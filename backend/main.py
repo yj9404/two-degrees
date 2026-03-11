@@ -319,6 +319,7 @@ def list_users(
     birth_year_max: Optional[int] = Query(None, ge=1940, le=2010, description="출생연도 상한"),
     active_area: Optional[str] = Query(None, description="주 활동 지역 (부분 일치)"),
     is_active: Optional[bool] = Query(None, description="매칭 풀 활성 여부 필터"),
+    smoking_status: Optional[str] = Query(None, description="흡연 여부 필터 (SMOKER | NON_SMOKER)"),
     db: Session = Depends(get_db),
     _admin: str = Depends(verify_admin),
 ):
@@ -329,6 +330,7 @@ def list_users(
     - **birth_year_min / birth_year_max**: 출생연도 범위 (예: 1990~2000)
     - **active_area**: 부분 문자열 일치 검색 (예: \"강남\" → \"서울 강남구\" 매칭)
     - **is_active**: true이면 매칭 풀에 활성화된 유저만 조회
+    - **smoking_status**: SMOKER 또는 NON_SMOKER
     """
     if birth_year_min and birth_year_max and birth_year_min > birth_year_max:
         raise HTTPException(
@@ -348,6 +350,13 @@ def list_users(
         query = query.filter(User.active_area.ilike(f"%{active_area}%"))
     if is_active is not None:
         query = query.filter(User.is_active == is_active)
+    if smoking_status is not None:
+        from models import SmokingStatus
+        try:
+            enum_status = SmokingStatus(smoking_status)
+            query = query.filter(User.smoking_status == enum_status)
+        except ValueError:
+            pass # Invalid smoking_status ignores instead of failing
 
     return query.all()
 

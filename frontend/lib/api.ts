@@ -131,10 +131,12 @@ export async function adminAuth(password: string): Promise<{ access_token: strin
 export async function listUsers(params?: {
     gender?: string;
     is_active?: boolean;
+    smoking_status?: string;
 }): Promise<UserReadAdmin[]> {
     const qs = new URLSearchParams();
     if (params?.gender) qs.set("gender", params.gender);
     if (params?.is_active !== undefined) qs.set("is_active", String(params.is_active));
+    if (params?.smoking_status) qs.set("smoking_status", params.smoking_status);
     const query = qs.toString() ? `?${qs}` : "";
     return apiFetch(`/api/users${query}`, { method: "GET" });
 }

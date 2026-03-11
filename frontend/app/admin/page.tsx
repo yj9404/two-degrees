@@ -621,6 +621,7 @@ export default function AdminPage() {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [filterGender, setFilterGender] = useState<"" | "MALE" | "FEMALE">("");
     const [filterActive, setFilterActive] = useState<"" | "true" | "false">("");
+    const [filterSmoking, setFilterSmoking] = useState<"" | "SMOKER" | "NON_SMOKER">("");
     const [filterName, setFilterName] = useState("");
     const [selectedUser, setSelectedUser] = useState<UserReadAdmin | null>(null);
     const [toDeleteId, setToDeleteId] = useState<string | null>(null);
@@ -918,6 +919,7 @@ export default function AdminPage() {
         if (filterGender && u.gender !== filterGender) return false;
         if (filterActive === "true" && !u.is_active) return false;
         if (filterActive === "false" && u.is_active) return false;
+        if (filterSmoking && u.smoking_status !== filterSmoking) return false;
         if (filterName && !u.name.toLowerCase().includes(filterName.toLowerCase())) return false;
         return true;
     });
@@ -1005,6 +1007,15 @@ export default function AdminPage() {
                                     <option value="">활성: 전체</option>
                                     <option value="true">활성</option>
                                     <option value="false">비활성</option>
+                                </select>
+                                <select
+                                    value={filterSmoking}
+                                    onChange={(e) => setFilterSmoking(e.target.value as typeof filterSmoking)}
+                                    className="text-sm border border-slate-200 rounded-md px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">흡연: 전체</option>
+                                    <option value="NON_SMOKER">비흡연</option>
+                                    <option value="SMOKER">흡연</option>
                                 </select>
                                 <Button size="sm" variant="outline" onClick={fetchUsers} disabled={loadingUsers}>
                                     {loadingUsers ? "로딩 중..." : "새로고침"}
