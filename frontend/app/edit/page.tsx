@@ -2,8 +2,8 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getUser, updateUser, getUserStats, deleteUser } from "@/lib/api";
-import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus, UserStatsResponse } from "@/types/user";
+import { getUser, updateUser, deleteUser } from "@/lib/api";
+import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus } from "@/types/user";
 
 import {
     Card,
@@ -51,7 +51,6 @@ function EditProfileContent() {
         "idle" | "loading" | "success" | "error"
     >("idle");
     const [errorMsg, setErrorMsg] = useState("");
-    const [stats, setStats] = useState<UserStatsResponse | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
     // ── 상태 전이 핸들러 ──────────────────────────
@@ -70,8 +69,6 @@ function EditProfileContent() {
             setLoadStatus("error");
             return;
         }
-        getUserStats().then(setStats).catch(() => { });
-
         getUser(user_id)
             .then((user) => {
                 setForm({
@@ -256,15 +253,14 @@ function EditProfileContent() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {stats && (
-                        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-                            <span className="text-blue-600 text-lg">📊</span>
-                            <div className="text-blue-900 text-sm">
-                                <span className="font-semibold block mb-0.5">현재 전체 프로필 성비 (활성화 기준)</span>
-                                남 <span className="font-bold">{stats.male_ratio}%</span> / 여 <span className="font-bold">{stats.female_ratio}%</span>
-                            </div>
-                        </div>
-                    )}
+                    {/* 프로필 링크 공유 안내 배너 */}
+                    <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                        <span className="text-lg">🌐</span>
+                        <p className="text-blue-900 text-[13px] font-medium leading-snug">
+                            항목명 옆에 <span className="font-bold">🌐</span> 표시가 된 정보는<br />
+                            프로필 링크 공유 시 상대방에게 노출됩니다.
+                        </p>
+                    </div>
 
                     <Card className="shadow-sm border-2 border-blue-100 bg-blue-50/50">
                         <CardContent className="pt-4 pb-4 px-4">
@@ -305,16 +301,16 @@ function EditProfileContent() {
                                 </div>
                             </RadioGroup>
                         </Field>
-                        <Field label="출생연도" required>
+                        <Field label="출생연도" required isPublic>
                             <Input id="edit-birth_year" name="birth_year" type="number" min={1980} max={2008} value={form.birth_year ?? ""} onChange={handleChange} required />
                         </Field>
-                        <Field label="직업" required>
+                        <Field label="직업" required isPublic>
                             <Input id="edit-job" name="job" value={form.job ?? ""} onChange={handleChange} required />
                         </Field>
                         <Field label="소개해 준 지인 이름" required hint="신원 보증용. 실명을 입력해 주세요.">
                             <Input id="edit-referrer_name" name="referrer_name" value={form.referrer_name ?? ""} onChange={handleChange} required />
                         </Field>
-                        <Field label="프로필 사진" required>
+                        <Field label="프로필 사진" required isPublic>
                             <ImageUploader value={form.photo_urls ?? []} onChange={(urls) => setForm((prev) => ({ ...prev, photo_urls: urls }))} />
                         </Field>
                     </SectionCard>
@@ -362,9 +358,9 @@ function EditProfileContent() {
 
                     <SectionCard title="📋 선택 정보" description="작성할수록 더 정확한 매칭이 가능합니다.">
                         <div className="grid grid-cols-2 gap-3">
-                            <Field label="MBTI"><Input id="edit-mbti" name="mbti" value={form.mbti ?? ""} onChange={handleChange} maxLength={4} /></Field>
-                            <Field label="종교"><Input id="edit-religion" name="religion" value={form.religion ?? ""} onChange={handleChange} /></Field>
-                            <Field label="흡연 여부">
+                            <Field label="MBTI" isPublic><Input id="edit-mbti" name="mbti" value={form.mbti ?? ""} onChange={handleChange} maxLength={4} /></Field>
+                            <Field label="종교" isPublic><Input id="edit-religion" name="religion" value={form.religion ?? ""} onChange={handleChange} /></Field>
+                            <Field label="흡연 여부" isPublic>
                                 <Select value={form.smoking_status ?? ""} onValueChange={(v) => handleSelect("smoking_status", v as SmokingStatus)}>
                                     <SelectTrigger id="edit-smoking_status"><SelectValue placeholder="선택" /></SelectTrigger>
                                     <SelectContent>
@@ -373,7 +369,7 @@ function EditProfileContent() {
                                     </SelectContent>
                                 </Select>
                             </Field>
-                            <Field label="음주 여부">
+                            <Field label="음주 여부" isPublic>
                                 <Select value={form.drinking_status ?? ""} onValueChange={(v) => handleSelect("drinking_status", v as DrinkingStatus)}>
                                     <SelectTrigger id="edit-drinking_status"><SelectValue placeholder="선택" /></SelectTrigger>
                                     <SelectContent>
@@ -383,13 +379,13 @@ function EditProfileContent() {
                                     </SelectContent>
                                 </Select>
                             </Field>
-                            <Field label="키 (cm)"><Input id="edit-height" name="height" type="number" value={form.height ?? ""} onChange={handleChange} /></Field>
-                            <Field label="운동"><Input id="edit-exercise" name="exercise" value={form.exercise ?? ""} onChange={handleChange} /></Field>
+                            <Field label="키 (cm)" isPublic><Input id="edit-height" name="height" type="number" value={form.height ?? ""} onChange={handleChange} /></Field>
+                            <Field label="운동" isPublic><Input id="edit-exercise" name="exercise" value={form.exercise ?? ""} onChange={handleChange} /></Field>
                         </div>
-                        <Field label="주 활동 지역"><Input id="edit-active_area" name="active_area" value={form.active_area ?? ""} onChange={handleChange} /></Field>
-                        <Field label="학력"><Input id="edit-education" name="education" value={form.education ?? ""} onChange={handleChange} /></Field>
-                        <Field label="직장 위치"><Input id="edit-workplace" name="workplace" value={form.workplace ?? ""} onChange={handleChange} /></Field>
-                        <Field label="취미"><Input id="edit-hobbies" name="hobbies" value={form.hobbies ?? ""} onChange={handleChange} /></Field>
+                        <Field label="주 활동 지역" isPublic><Input id="edit-active_area" name="active_area" value={form.active_area ?? ""} onChange={handleChange} /></Field>
+                        <Field label="학력" isPublic><Input id="edit-education" name="education" value={form.education ?? ""} onChange={handleChange} /></Field>
+                        <Field label="직장 위치" isPublic><Input id="edit-workplace" name="workplace" value={form.workplace ?? ""} onChange={handleChange} /></Field>
+                        <Field label="취미" isPublic><Input id="edit-hobbies" name="hobbies" value={form.hobbies ?? ""} onChange={handleChange} /></Field>
                         <Field label="자기소개"><Textarea id="edit-intro" name="intro" rows={3} value={form.intro ?? ""} onChange={handleChange} /></Field>
                         <Field label="인스타그램 아이디"><Input id="edit-instagram_id" name="instagram_id" value={form.instagram_id ?? ""} onChange={handleChange} /></Field>
                     </SectionCard>

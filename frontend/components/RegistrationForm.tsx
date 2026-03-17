@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { registerUser, getUserStats } from "@/lib/api";
-import type { UserCreatePayload, Gender, SmokingStatus, DrinkingStatus, UserStatsResponse } from "@/types/user";
+import { registerUser } from "@/lib/api";
+import type { UserCreatePayload, Gender, SmokingStatus, DrinkingStatus } from "@/types/user";
 
 import {
     Card,
@@ -70,7 +70,6 @@ export default function RegistrationForm() {
         "idle" | "loading" | "success" | "error"
     >("idle");
     const [errorMsg, setErrorMsg] = useState("");
-    const [stats, setStats] = useState<UserStatsResponse | null>(null);
 
     useEffect(() => {
         if (status === "success") {
@@ -81,9 +80,7 @@ export default function RegistrationForm() {
         }
     }, [status, router]);
 
-    useEffect(() => {
-        getUserStats().then(setStats).catch(() => { });
-    }, []);
+
 
     // 텍스트·숫자 입력 공통 핸들러
     const handleChange = (
@@ -195,16 +192,14 @@ export default function RegistrationForm() {
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* 상단 배너 영역 */}
                 <div className="space-y-2">
-                    {/* 통계 배너 */}
-                    {stats && (
-                        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-                            <span className="text-blue-600 text-lg">📊</span>
-                            <div className="text-blue-900 text-sm">
-                                <span className="font-semibold block mb-0.5">현재 전체 프로필 성비 (활성화 기준)</span>
-                                남 <span className="font-bold">{stats.male_ratio}%</span> / 여 <span className="font-bold">{stats.female_ratio}%</span>
-                            </div>
-                        </div>
-                    )}
+                    {/* 프로필 링크 공유 안내 배너 */}
+                    <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                        <span className="text-lg">🌐</span>
+                        <p className="text-blue-900 text-[13px] font-medium leading-snug">
+                            항목명 옆에 <span className="font-bold">🌐</span> 표시가 된 정보는<br />
+                            프로필 링크 공유 시 상대방에게 노출됩니다.
+                        </p>
+                    </div>
 
                     {/* 무료 안내 배너 */}
                     <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
@@ -251,7 +246,7 @@ export default function RegistrationForm() {
                     </Field>
 
                     {/* 출생연도 */}
-                    <Field label="출생연도" required>
+                    <Field label="출생연도" required isPublic>
                         <Input
                             id="birth_year"
                             name="birth_year"
@@ -265,7 +260,7 @@ export default function RegistrationForm() {
                     </Field>
 
                     {/* 직업 */}
-                    <Field label="직업" required>
+                    <Field label="직업" required isPublic>
                         <Input
                             id="job"
                             name="job"
@@ -317,7 +312,7 @@ export default function RegistrationForm() {
                     </Field>
 
                     {/* 프로필 사진 */}
-                    <Field label="프로필 사진" required>
+                    <Field label="프로필 사진" required isPublic>
                         <ImageUploader
                             value={form.photo_urls ?? []}
                             onChange={(urls) => setForm((prev) => ({ ...prev, photo_urls: urls }))}
@@ -423,7 +418,7 @@ export default function RegistrationForm() {
                 >
                     {/* 2열 그리드: MBTI · 흡연 · 음주 · 종교 · 키 · 운동 */}
                     <div className="grid grid-cols-2 gap-3">
-                        <Field label="MBTI">
+                        <Field label="MBTI" isPublic>
                             <Input
                                 id="mbti"
                                 name="mbti"
@@ -434,7 +429,7 @@ export default function RegistrationForm() {
                             />
                         </Field>
 
-                        <Field label="종교">
+                        <Field label="종교" isPublic>
                             <Input
                                 id="religion"
                                 name="religion"
@@ -444,7 +439,7 @@ export default function RegistrationForm() {
                             />
                         </Field>
 
-                        <Field label="흡연 여부">
+                        <Field label="흡연 여부" isPublic>
                             <Select
                                 value={form.smoking_status ?? ""}
                                 onValueChange={(v) => handleSelect("smoking_status", v as SmokingStatus)}
@@ -457,7 +452,7 @@ export default function RegistrationForm() {
                             </Select>
                         </Field>
 
-                        <Field label="음주 여부">
+                        <Field label="음주 여부" isPublic>
                             <Select
                                 value={form.drinking_status ?? ""}
                                 onValueChange={(v) => handleSelect("drinking_status", v as DrinkingStatus)}
@@ -471,7 +466,7 @@ export default function RegistrationForm() {
                             </Select>
                         </Field>
 
-                        <Field label="키 (cm)">
+                        <Field label="키 (cm)" isPublic>
                             <Input
                                 id="height"
                                 name="height"
@@ -483,7 +478,7 @@ export default function RegistrationForm() {
                             />
                         </Field>
 
-                        <Field label="운동">
+                        <Field label="운동" isPublic>
                             <Input
                                 id="exercise"
                                 name="exercise"
@@ -495,7 +490,7 @@ export default function RegistrationForm() {
                     </div>
 
                     {/* 전체 너비 필드 */}
-                    <Field label="주 활동 지역">
+                    <Field label="주 활동 지역" isPublic>
                         <Input
                             id="active_area"
                             name="active_area"
@@ -505,7 +500,7 @@ export default function RegistrationForm() {
                         />
                     </Field>
 
-                    <Field label="학력">
+                    <Field label="학력" isPublic>
                         <Input
                             id="education"
                             name="education"
@@ -515,7 +510,7 @@ export default function RegistrationForm() {
                         />
                     </Field>
 
-                    <Field label="직장 위치">
+                    <Field label="직장 위치" isPublic>
                         <Input
                             id="workplace"
                             name="workplace"
@@ -525,7 +520,7 @@ export default function RegistrationForm() {
                         />
                     </Field>
 
-                    <Field label="취미">
+                    <Field label="취미" isPublic>
                         <Input
                             id="hobbies"
                             name="hobbies"
