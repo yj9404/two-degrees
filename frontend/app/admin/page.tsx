@@ -1150,15 +1150,15 @@ export default function AdminPage() {
                                         <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                                             <span>생성: {match.created_at ? new Date(match.created_at).toLocaleString() : "-"}</span>
                                             <div className="flex items-center gap-1.5">
-                                                {match.is_contact_shared ? (
-                                                    <span className="font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">매칭종료 ✓</span>
-                                                ) : (match.user_a_status === "ACCEPTED" && match.user_b_status === "ACCEPTED") ? (
-                                                    <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">성사 완료! 🎉</span>
-                                                ) : (match.user_a_status === "REJECTED" || match.user_b_status === "REJECTED") ? (
-                                                    <span className="font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">매칭 실패</span>
-                                                ) : (
-                                                    <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">진행 중 ⏳</span>
-                                                )}
+                                                {(() => {
+                                                    const isExpiredMatch = match.expires_at ? new Date(match.expires_at) < new Date() : false;
+                                                    const hasNoResponse = isExpiredMatch && (match.user_a_status === "PENDING" || match.user_b_status === "PENDING");
+                                                    if (match.is_contact_shared) return <span className="font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">매칭종료 ✓</span>;
+                                                    if (match.user_a_status === "ACCEPTED" && match.user_b_status === "ACCEPTED") return <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">성사 완료! 🎉</span>;
+                                                    if (match.user_a_status === "REJECTED" || match.user_b_status === "REJECTED") return <span className="font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">매칭 실패</span>;
+                                                    if (hasNoResponse) return <span className="font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">무응답 ⏱️</span>;
+                                                    return <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">진행 중 ⏳</span>;
+                                                })()}
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -1201,11 +1201,13 @@ export default function AdminPage() {
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-auto">
-                                                        <span className={`text-xs font-bold ${match.user_a_status === "ACCEPTED" ? "text-green-600" :
-                                                            match.user_a_status === "REJECTED" ? "text-red-600" : "text-slate-500"
-                                                            }`}>
-                                                            {match.user_a_status}
-                                                        </span>
+                                                        {(() => {
+                                                            const isExpiredMatch = match.expires_at ? new Date(match.expires_at) < new Date() : false;
+                                                            const isNoResponse = isExpiredMatch && match.user_a_status === "PENDING";
+                                                            return <span className={`text-xs font-bold ${match.user_a_status === "ACCEPTED" ? "text-green-600" : match.user_a_status === "REJECTED" ? "text-red-600" : isNoResponse ? "text-slate-400" : "text-slate-500"}`}>
+                                                                {isNoResponse ? "무응답" : match.user_a_status}
+                                                            </span>;
+                                                        })()}
                                                         <div className="flex gap-1">
                                                             <Button size="sm" variant={match.user_a_status === "ACCEPTED" ? "default" : "outline"} className={`h-7 px-2.5 text-xs shadow-none ${match.user_a_status === "ACCEPTED" ? "bg-green-600 hover:bg-green-700" : ""}`} onClick={() => handleUpdateMatchStatus(match.id, match.user_a_id, "ACCEPTED")}>수락</Button>
                                                             <Button size="sm" variant={match.user_a_status === "REJECTED" ? "default" : "outline"} className={`h-7 px-2.5 text-xs shadow-none ${match.user_a_status === "REJECTED" ? "bg-red-500 hover:bg-red-600" : ""}`} onClick={() => handleUpdateMatchStatus(match.id, match.user_a_id, "REJECTED")}>거절</Button>
@@ -1235,11 +1237,13 @@ export default function AdminPage() {
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-auto">
-                                                        <span className={`text-xs font-bold ${match.user_b_status === "ACCEPTED" ? "text-green-600" :
-                                                            match.user_b_status === "REJECTED" ? "text-red-600" : "text-slate-500"
-                                                            }`}>
-                                                            {match.user_b_status}
-                                                        </span>
+                                                        {(() => {
+                                                            const isExpiredMatch = match.expires_at ? new Date(match.expires_at) < new Date() : false;
+                                                            const isNoResponse = isExpiredMatch && match.user_b_status === "PENDING";
+                                                            return <span className={`text-xs font-bold ${match.user_b_status === "ACCEPTED" ? "text-green-600" : match.user_b_status === "REJECTED" ? "text-red-600" : isNoResponse ? "text-slate-400" : "text-slate-500"}`}>
+                                                                {isNoResponse ? "무응답" : match.user_b_status}
+                                                            </span>;
+                                                        })()}
                                                         <div className="flex gap-1">
                                                             <Button size="sm" variant={match.user_b_status === "ACCEPTED" ? "default" : "outline"} className={`h-7 px-2.5 text-xs shadow-none ${match.user_b_status === "ACCEPTED" ? "bg-green-600 hover:bg-green-700" : ""}`} onClick={() => handleUpdateMatchStatus(match.id, match.user_b_id, "ACCEPTED")}>수락</Button>
                                                             <Button size="sm" variant={match.user_b_status === "REJECTED" ? "default" : "outline"} className={`h-7 px-2.5 text-xs shadow-none ${match.user_b_status === "REJECTED" ? "bg-red-500 hover:bg-red-600" : ""}`} onClick={() => handleUpdateMatchStatus(match.id, match.user_b_id, "REJECTED")}>거절</Button>
