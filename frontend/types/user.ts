@@ -82,6 +82,7 @@ export interface UserReadAdmin extends Omit<UserCreatePayload, "password"> {
     id: string;
     contact: string;
     is_active: boolean;
+    match_count: number;
 }
 
 /** GET /api/upload/presigned-url 응답 */

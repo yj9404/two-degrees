@@ -48,7 +48,7 @@ from schemas import (
 app = FastAPI(
     title="TwoDegrees API",
     description="소개팅 풀 등록 및 관리 API",
-    version="1.0.3",
+    version="1.0.4",
 )
 
 # 개발 편의를 위해 CORS 전체 허용 (운영 시 origins 제한 필요)
@@ -161,6 +161,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    new_user.match_count = 0
     return new_user
 
 
@@ -254,6 +255,8 @@ def get_user(user_id: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 유저를 찾을 수 없습니다.",
         )
+    from sqlalchemy import or_
+    user.match_count = db.query(Matching).filter(or_(Matching.user_a_id == user_id, Matching.user_b_id == user_id)).count()
     return user
 
 
@@ -300,6 +303,9 @@ def update_user(
 
     db.commit()
     db.refresh(user)
+
+    from sqlalchemy import or_
+    user.match_count = db.query(Matching).filter(or_(Matching.user_a_id == user_id, Matching.user_b_id == user_id)).count()
     return user
 
 
@@ -358,7 +364,20 @@ def list_users(
         except ValueError:
             pass # Invalid smoking_status ignores instead of failing
 
-    return query.all()
+    users = query.all()
+
+    # 전체 매칭 조회하여 파이썬 단에서 카운트 집계
+    from collections import Counter
+    all_matchings = db.query(Matching.user_a_id, Matching.user_b_id).all()
+    counts = Counter()
+    for a, b in all_matchings:
+        counts[a] += 1
+        counts[b] += 1
+    
+    for u in users:
+        u.match_count = counts.get(u.id, 0)
+
+    return users
 
 
 # ---------------------------------------------------------------------------

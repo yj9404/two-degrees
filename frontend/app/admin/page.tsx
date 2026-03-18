@@ -558,9 +558,14 @@ function UserCard({
 
                     {/* 기본 정보 */}
                     <div className="flex-1 min-w-0">
-                        <p className="text-slate-900 font-bold text-sm truncate leading-tight">
-                            {user.name}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                            <p className="text-slate-900 font-bold text-sm truncate leading-tight">
+                                {user.name}
+                            </p>
+                            <span className="text-[10px] text-slate-500 bg-black/5 px-1.5 py-0.5 rounded font-medium">
+                                (매칭 {user.match_count || 0}회)
+                            </span>
+                        </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-slate-400 text-[10px] font-medium shrink-0">
                                 {user.birth_year % 100}년생

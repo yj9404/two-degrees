@@ -172,6 +172,7 @@ class UserReadAdmin(UserRead):
     """관리자 응답 – contact 포함, password_hash 제외"""
 
     contact: str
+    match_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
