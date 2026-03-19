@@ -16,7 +16,7 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from datetime import datetime
-from models import DrinkingStatus, Gender, SmokingStatus, MatchStatus
+from models import DrinkingStatus, Gender, SmokingStatus, MatchStatus, MarriageIntent, ChildPlan
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +49,8 @@ class _UserBase(BaseModel):
     age_preference: Optional[List[str]] = Field(None, examples=[["OLDER", "SAME"]])  # 다중 선택
     age_gap_older: Optional[int] = Field(None, ge=1, le=20, examples=[5])   # 연상 최대 나이차
     age_gap_younger: Optional[int] = Field(None, ge=1, le=20, examples=[3]) # 연하 최대 나이차
+    marriage_intent: Optional[MarriageIntent] = MarriageIntent.UNKNOWN  # 결혼 의향
+    child_plan: Optional[ChildPlan] = ChildPlan.UNKNOWN                  # 자녀 계획
 
     @field_validator("photo_urls", mode="before")
     @classmethod
@@ -109,6 +111,8 @@ class UserUpdate(BaseModel):
     age_gap_older: Optional[int] = Field(None, ge=1, le=20)
     age_gap_younger: Optional[int] = Field(None, ge=1, le=20)
     is_active: Optional[bool] = None
+    marriage_intent: Optional[MarriageIntent] = None  # 결혼 의향 (None = 변경 없음)
+    child_plan: Optional[ChildPlan] = None             # 자녀 계획 (None = 변경 없음)
 
 
 # ---------------------------------------------------------------------------

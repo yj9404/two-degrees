@@ -5,6 +5,8 @@ export type Gender = "MALE" | "FEMALE";
 export type SmokingStatus = "NON_SMOKER" | "SMOKER";
 export type DrinkingStatus = "NON_DRINKER" | "SOCIAL_DRINKER" | "DRINKER";
 export type MatchStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+export type MarriageIntent = "UNKNOWN" | "WILLING" | "OPEN" | "NOT_NOW" | "NON_MARRIAGE";
+export type ChildPlan = "UNKNOWN" | "WANT" | "OPEN" | "NOT_NOW" | "DINK";
 
 /** POST /api/users 요청 페이로드 */
 export interface UserCreatePayload {
@@ -35,6 +37,8 @@ export interface UserCreatePayload {
     age_preference?: ("OLDER" | "YOUNGER" | "SAME" | "ANY")[]; // 다중 선택
     age_gap_older?: number;   // 연상 허용 최대 나이차
     age_gap_younger?: number; // 연하 허용 최대 나이차
+    marriage_intent?: MarriageIntent; // 결혼 의향
+    child_plan?: ChildPlan;           // 자녀 계획
 }
 
 /** PUT /api/users/{user_id} 요청 페이로드 – 모든 필드 Optional */
@@ -63,6 +67,8 @@ export interface UserUpdatePayload {
     age_gap_older?: number;
     age_gap_younger?: number;
     is_active?: boolean;
+    marriage_intent?: MarriageIntent; // 결혼 의향
+    child_plan?: ChildPlan;           // 자녀 계획
 }
 
 /** POST /api/users/auth 요청 페이로드 */

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { registerUser } from "@/lib/api";
-import type { UserCreatePayload, Gender, SmokingStatus, DrinkingStatus } from "@/types/user";
+import type { UserCreatePayload, Gender, SmokingStatus, DrinkingStatus, MarriageIntent, ChildPlan } from "@/types/user";
 
 import {
     Card,
@@ -57,6 +57,8 @@ const INITIAL_FORM: Partial<UserCreatePayload> = {
     age_preference: [],
     age_gap_older: undefined,
     age_gap_younger: undefined,
+    marriage_intent: undefined,
+    child_plan: undefined,
 };
 
 
@@ -93,9 +95,12 @@ export default function RegistrationForm() {
         }));
     };
 
-    // Select / RadioGroup 공통 핸들러
+    // Select / RadioGroup 공통 핸들러 (동일한 값 클릭 시 선택 해제 지원)
     const handleSelect = (name: keyof UserCreatePayload, value: string) => {
-        setForm((prev) => ({ ...prev, [name]: value }));
+        setForm((prev) => ({
+            ...prev,
+            [name]: prev[name] === value ? undefined : value
+        }));
     };
 
     // 연령 선호 토글 (ANY 선택 시 다른 항목 해제)
@@ -554,6 +559,70 @@ export default function RegistrationForm() {
                     </Field>
 
 
+                </SectionCard>
+
+                {/* ④ 가치관 정보 */}
+                <SectionCard
+                    title="💍 가치관 정보"
+                    description="AI 매칭에 활용되는 가치관 정보입니다. (선택 사항)"
+                >
+                    {/* 안내 배너 */}
+                    <div className="flex items-start gap-2 bg-purple-50 border border-purple-100 rounded-lg px-4 py-3">
+                        <span className="text-purple-600 text-lg shrink-0">🤖</span>
+                        <p className="text-purple-800 text-xs leading-relaxed">
+                            이 정보는 AI가 가치관이 유사한 분을 매칭하는 데에만 참고하며, 상대방에게는 &apos;추천 사유&apos;를 통해 완곡하게 전달됩니다.
+                        </p>
+                    </div>
+
+                    {/* 결혼 의향 */}
+                    <Field label="결혼 의향">
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { value: "WILLING", label: "결혼 생각 있어요" },
+                                { value: "OPEN", label: "좋은 분 나타나면요" },
+                                { value: "NOT_NOW", label: "아직은 생각 없어요" },
+                                { value: "NON_MARRIAGE", label: "비혼주의예요" },
+                            ] as { value: MarriageIntent; label: string }[]).map((opt) => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => handleSelect("marriage_intent", opt.value)}
+                                    className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors
+                                        ${form.marriage_intent === opt.value
+                                            ? "bg-purple-600 text-white border-purple-600"
+                                            : "bg-white text-slate-700 border-slate-200 hover:border-purple-400"
+                                        }`}
+                                >
+                                    {form.marriage_intent === opt.value ? "✓ " : ""}{opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </Field>
+
+                    {/* 자녀 계획 */}
+                    <Field label="자녀 계획">
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { value: "WANT", label: "꼭 원해요" },
+                                { value: "OPEN", label: "좋은 분 나타나면요" },
+                                { value: "NOT_NOW", label: "아직은 생각 없어요" },
+                                { value: "DINK", label: "딩크를 원해요" },
+                            ] as { value: ChildPlan; label: string }[]).map((opt) => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => handleSelect("child_plan", opt.value)}
+                                    className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors
+                                        ${form.child_plan === opt.value
+                                            ? "bg-purple-600 text-white border-purple-600"
+                                            : "bg-white text-slate-700 border-slate-200 hover:border-purple-400"
+                                        }`}
+                                >
+                                    {form.child_plan === opt.value ? "✓ " : ""}{opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </Field>
                 </SectionCard>
 
                 {/* 에러 메시지 */}

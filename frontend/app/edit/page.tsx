@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getUser, updateUser, deleteUser } from "@/lib/api";
-import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus } from "@/types/user";
+import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus, MarriageIntent, ChildPlan } from "@/types/user";
 
 import {
     Card,
@@ -44,6 +44,7 @@ function EditProfileContent() {
 
     const [form, setForm] = useState<UserUpdatePayload>({});
     const [isActive, setIsActive] = useState(true);
+    const [hasUnknownValues, setHasUnknownValues] = useState(false);
     const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">(
         "loading"
     );
@@ -95,7 +96,14 @@ function EditProfileContent() {
                     age_preference: user.age_preference ?? [],
                     age_gap_older: user.age_gap_older ?? undefined,
                     age_gap_younger: user.age_gap_younger ?? undefined,
+                    marriage_intent: (user.marriage_intent as MarriageIntent) ?? undefined,
+                    child_plan: (user.child_plan as ChildPlan) ?? undefined,
                 });
+                // UNKNOWN 값이 있는 경우 강조 배너 표시
+                const unknownFound =
+                    !user.marriage_intent || user.marriage_intent === "UNKNOWN" ||
+                    !user.child_plan || user.child_plan === "UNKNOWN";
+                setHasUnknownValues(unknownFound);
                 setIsActive(user.is_active);
                 setLoadStatus("ready");
             })
@@ -114,8 +122,12 @@ function EditProfileContent() {
         }));
     };
 
+    // Select / RadioGroup 공통 핸들러 (동일 값 클릭 시 선택 해제)
     const handleSelect = (name: keyof UserUpdatePayload, value: string) => {
-        setForm((prev) => ({ ...prev, [name]: value }));
+        setForm((prev) => ({
+            ...prev,
+            [name]: prev[name] === value ? undefined : value
+        }));
     };
 
     // 연령 선호 토글 (다중 선택)
@@ -388,6 +400,77 @@ function EditProfileContent() {
                         <Field label="취미" isPublic><Input id="edit-hobbies" name="hobbies" value={form.hobbies ?? ""} onChange={handleChange} /></Field>
                         <Field label="자기소개"><Textarea id="edit-intro" name="intro" rows={3} value={form.intro ?? ""} onChange={handleChange} /></Field>
                         <Field label="인스타그램 아이디"><Input id="edit-instagram_id" name="instagram_id" value={form.instagram_id ?? ""} onChange={handleChange} /></Field>
+                    </SectionCard>
+
+                    {/* 가치관 정보 섯 */}
+                    <SectionCard title="💍 가치관 정보" description="AI 매칭에 활용되는 가치관 정보입니다. (선택 사항)">
+                        {/* UNKNOWN 값 있는 경우 하이라이트 */}
+                        {hasUnknownValues && (
+                            <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3">
+                                <span className="text-amber-500 text-lg shrink-0">⚠️</span>
+                                <p className="text-amber-800 text-xs leading-relaxed font-medium">
+                                    정교한 매칭을 위해 가치관 정보를 업데이트해 주세요!
+                                </p>
+                            </div>
+                        )}
+
+                        {/* AI 활용 안내 */}
+                        <div className="flex items-start gap-2 bg-purple-50 border border-purple-100 rounded-lg px-4 py-3">
+                            <span className="text-purple-600 text-lg shrink-0">🤖</span>
+                            <p className="text-purple-800 text-xs leading-relaxed">
+                                이 정보는 AI가 가치관이 유사한 분을 매칭하는 데에만 참고하며, 상대방에게는 &apos;추천 사유&apos;를 통해 완곡하게 전달됩니다.
+                            </p>
+                        </div>
+
+                        {/* 결혼 의향 */}
+                        <Field label="결혼 의향">
+                            <div className="flex flex-wrap gap-2">
+                                {([
+                                    { value: "WILLING", label: "결혼 생각 있어요" },
+                                    { value: "OPEN", label: "좋은 분 나타나면요" },
+                                    { value: "NOT_NOW", label: "아직은 생각 없어요" },
+                                    { value: "NON_MARRIAGE", label: "비혼주의예요" },
+                                ] as { value: MarriageIntent; label: string }[]).map((opt) => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => handleSelect("marriage_intent", opt.value)}
+                                        className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors
+                                            ${form.marriage_intent === opt.value
+                                                ? "bg-purple-600 text-white border-purple-600"
+                                                : "bg-white text-slate-700 border-slate-200 hover:border-purple-400"
+                                            }`}
+                                    >
+                                        {form.marriage_intent === opt.value ? "✓ " : ""}{opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </Field>
+
+                        {/* 자녀 계획 */}
+                        <Field label="자녀 계획">
+                            <div className="flex flex-wrap gap-2">
+                                {([
+                                    { value: "WANT", label: "꼭 원해요" },
+                                    { value: "OPEN", label: "좋은 분 나타나면요" },
+                                    { value: "NOT_NOW", label: "아직은 생각 없어요" },
+                                    { value: "DINK", label: "딩크를 원해요" },
+                                ] as { value: ChildPlan; label: string }[]).map((opt) => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => handleSelect("child_plan", opt.value)}
+                                        className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors
+                                            ${form.child_plan === opt.value
+                                                ? "bg-purple-600 text-white border-purple-600"
+                                                : "bg-white text-slate-700 border-slate-200 hover:border-purple-400"
+                                            }`}
+                                    >
+                                        {form.child_plan === opt.value ? "✓ " : ""}{opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </Field>
                     </SectionCard>
 
                     {saveStatus === "error" && <p className="text-red-500 text-sm text-center">{errorMsg}</p>}

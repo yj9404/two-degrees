@@ -45,6 +45,22 @@ class DrinkingStatus(PyEnum):
     DRINKER = "DRINKER"               # 음주
 
 
+class MarriageIntent(PyEnum):
+    UNKNOWN = "UNKNOWN"          # 미등록
+    WILLING = "WILLING"          # 생각 있음
+    OPEN = "OPEN"                # 좋은 분 나타나면
+    NOT_NOW = "NOT_NOW"          # 아직 생각 없음
+    NON_MARRIAGE = "NON_MARRIAGE" # 비혼
+
+
+class ChildPlan(PyEnum):
+    UNKNOWN = "UNKNOWN"    # 미등록
+    WANT = "WANT"          # 반드시 원함
+    OPEN = "OPEN"          # 좋은 분 나타나면
+    NOT_NOW = "NOT_NOW"    # 아직 생각 없음
+    DINK = "DINK"          # 원치 않음
+
+
 class MatchStatus(PyEnum):
     PENDING = "PENDING"
     ACCEPTED = "ACCEPTED"
@@ -97,6 +113,14 @@ class User(Base):
     age_preference = Column(JSON, nullable=True)         # ["OLDER", "SAME"] 등 다중 선택
     age_gap_older = Column(Integer, nullable=True)        # 연상 허용 최대 나이차 (세)
     age_gap_younger = Column(Integer, nullable=True)      # 연하 허용 최대 나이차 (세)
+
+    # ── 가치관 항목 (nullable=True, 기본값 UNKNOWN) ─────────────────────────
+    marriage_intent = Column(
+        Enum(MarriageIntent), nullable=True, default=MarriageIntent.UNKNOWN
+    )  # 결혼 의향
+    child_plan = Column(
+        Enum(ChildPlan), nullable=True, default=ChildPlan.UNKNOWN
+    )  # 자녀 계획
 
     def __repr__(self) -> str:
         return f"<User id={self.id!r} name={self.name!r} gender={self.gender}>"
