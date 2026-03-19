@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, MapPin, Briefcase, Ruler, Sparkles, CheckCircle2, XCircle, GraduationCap, Building2, Fingerprint, Church, Cigarette, Wine, Dumbbell, Palette, Cake } from "lucide-react";
+import { Clock, MapPin, Briefcase, Ruler, Sparkles, CheckCircle2, XCircle, GraduationCap, Building2, Fingerprint, Church, Cigarette, Wine, Dumbbell, Palette, Cake, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -119,6 +119,18 @@ export default function SharedProfilePage() {
                     <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
                     <h1 className="text-xl font-semibold text-slate-900 mb-2">접근할 수 없는 링크입니다.</h1>
                     <p className="text-slate-500 text-sm mb-6">{error || "만료되었거나 유효하지 않은 링크입니다."}</p>
+                    <div className="pt-4 border-t border-slate-100 italic">
+                        <p className="text-slate-400 text-xs mb-3 font-medium">링크 작동에 문제가 있나요?</p>
+                        <a
+                            href="http://pf.kakao.com/_jnxiZX/chat"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 bg-[#FEE500] hover:bg-[#F7E100] text-[#191919] text-xs font-bold py-2.5 px-5 rounded-full transition-all shadow-sm"
+                        >
+                            <MessageCircle size={14} fill="#191919" />
+                            <span>고객센터 문의하기</span>
+                        </a>
+                    </div>
                 </Card>
             </div>
         );
@@ -344,6 +356,19 @@ export default function SharedProfilePage() {
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
+                </div>
+
+                {/* Footer Inquiry for Profile Page */}
+                <div className="pb-12 pt-6 text-center space-y-3">
+                    <p className="text-slate-400 text-[10px] font-medium tracking-tight">링크 작동에 문제가 있나요?</p>
+                    <a 
+                        href="http://pf.kakao.com/_jnxiZX/chat"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 font-bold text-xs underline underline-offset-4 decoration-blue-100 hover:decoration-blue-400 transition-all uppercase tracking-tighter"
+                    >
+                        고객센터 문의
+                    </a>
                 </div>
             </div>
         </div>

@@ -42,6 +42,7 @@ export const metadata: Metadata = {
 };
 
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 export default function RootLayout({
   children,
@@ -57,10 +58,7 @@ export default function RootLayout({
         <div className="flex-1 w-full max-w-md mx-auto bg-white shadow-sm ring-1 ring-slate-200">
           {children}
         </div>
-        {/* 서비스 공통 최하단 버전 표시 */}
-        <footer className="py-6 text-center text-xs text-slate-400 bg-slate-50">
-          TwoDegrees v1.1.0
-        </footer>
+        <Footer />
       </body>
     </html>
   );

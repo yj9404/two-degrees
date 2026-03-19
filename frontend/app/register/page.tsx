@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 export default function RegisterPage() {
     return (
         <main className="min-h-[100dvh] py-8 px-4">
-            {/* 가입 조건 동의 팝업 (초기 접속 시 표시됨) */}
-            <AgreementModal />
+            {/* 가입 조건 동의 팝업 (가입 페이지 진입 시 무조건 표시) */}
+            <AgreementModal forced={true} />
 
             <div className="space-y-6">
                 {/* 헤더 */}

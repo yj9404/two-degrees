@@ -11,17 +11,25 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 
-export default function AgreementModal() {
+interface AgreementModalProps {
+    forced?: boolean;
+}
+
+export default function AgreementModal({ forced = false }: AgreementModalProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [agreed, setAgreed] = useState(false);
 
     useEffect(() => {
-        // 세션이 유지되는 동안 이미 한 번 동의했다면 다시 열리지 않도록 설정
-        const hasAgreed = sessionStorage.getItem("twoDegreesAgreed");
-        if (!hasAgreed) {
+        if (forced) {
             setIsOpen(true);
+        } else {
+            // 세션이 유지되는 동안 이미 한 번 동의했다면 다시 열리지 않도록 설정
+            const hasAgreed = sessionStorage.getItem("twoDegreesAgreed");
+            if (!hasAgreed) {
+                setIsOpen(true);
+            }
         }
-    }, []);
+    }, [forced]);
 
     const handleAgree = () => {
         sessionStorage.setItem("twoDegreesAgreed", "true");

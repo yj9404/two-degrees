@@ -164,6 +164,14 @@ export interface Notice {
 
 /** 공유 프로필 정보 */
 export interface SharedProfileRead {
+    age: number;
+    birth_year: number;
+    job: string;
+    height?: number;
+    active_area?: string;
+    education?: string;
+    workplace?: string;
+    mbti?: string;
     religion?: string;
     smoking_status?: SmokingStatus;
     drinking_status?: DrinkingStatus;

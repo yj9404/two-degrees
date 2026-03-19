@@ -51,11 +51,22 @@ export default function HomePage() {
               지금 바로 등록하기
             </Button>
           </Link>
-          <Link href="/auth">
-            <Button variant="ghost" className="w-full text-slate-500 font-semibold">
-              이미 등록하셨나요? →
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/auth" className="flex-1">
+              <Button variant="outline" className="w-full h-12 text-slate-600 font-bold border-slate-200 rounded-xl">
+                이미 등록하셨나요?
+              </Button>
+            </Link>
+            <a 
+              href="http://pf.kakao.com/_jnxiZX/chat"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 h-12 flex items-center justify-center gap-2 bg-[#FEE500] hover:bg-[#F7E100] text-[#191919] font-bold rounded-xl text-sm transition-all active:scale-95 shadow-sm"
+            >
+              <MessageCircle size={16} fill="#191919" />
+              서비스 문의하기
+            </a>
+          </div>
         </div>
       </section>
 
@@ -196,12 +207,22 @@ export default function HomePage() {
 
           <FAQSection />
 
-          <div className="pt-12 text-center border-t border-slate-200">
-            <div className="flex flex-col items-center gap-4">
-              <p className="text-slate-400 text-xs">
-                © 2026 TwoDegrees. All rights reserved.
+          <div className="pt-12 text-center border-t border-slate-100 flex flex-col items-center gap-6">
+            <div className="space-y-2">
+              <p className="text-slate-900 font-bold text-base tracking-tight">더 궁금한 점이 있으신가요?</p>
+              <p className="text-slate-500 text-xs font-medium leading-relaxed">
+                주선자가 직접 친절하게 답변해 드립니다.<br/>어떤 점이든 편하게 물어보세요!
               </p>
             </div>
+            <a 
+              href="http://pf.kakao.com/_jnxiZX/chat"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 bg-[#FEE500] hover:bg-[#F7E100] text-[#191919] font-bold py-3.5 px-8 rounded-2xl transition-all shadow-md active:scale-95 group"
+            >
+              <MessageCircle size={20} fill="#191919" className="group-hover:rotate-12 transition-transform" />
+              <span>주선자에게 카톡으로 물어보기</span>
+            </a>
           </div>
         </div>
       </section>
