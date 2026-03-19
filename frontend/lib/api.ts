@@ -17,6 +17,7 @@ import type {
     SharedProfileRead,
     MatchRespondRequest,
     DailyMatchingStatsResponse,
+    Notice,
 } from "@/types/user";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -264,5 +265,42 @@ export async function respondSharedMatching(
     return apiFetch(`/api/shared/${token}/respond`, {
         method: "POST",
         body: JSON.stringify(payload),
+    });
+}
+
+/** ──────────────────────────────────────────────────────────── 
+ * NOTICE (공지사항) API
+ * ──────────────────────────────────────────────────────────── */
+
+/** GET /api/notices/latest-popup – 가장 최근 팝업 공지 조회 */
+export async function getLatestPopupNotice(): Promise<Notice | null> {
+    return apiFetch("/api/notices/latest-popup", { method: "GET" });
+}
+
+/** GET /api/notices – 공지사항 목록 조회 (관리자) */
+export async function listNotices(): Promise<Notice[]> {
+    return apiFetch("/api/notices", { method: "GET" });
+}
+
+/** POST /api/notices – 공지사항 작성 (관리자) */
+export async function createNotice(payload: { title: string; content: string; is_popup: boolean }): Promise<Notice> {
+    return apiFetch("/api/notices", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+/** PUT /api/notices/{id} – 공지사항 수정 (관리자) */
+export async function updateNotice(id: number, payload: { title?: string; content?: string; is_popup?: boolean }): Promise<Notice> {
+    return apiFetch(`/api/notices/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+    });
+}
+
+/** DELETE /api/notices/{id} – 공지사항 삭제 (관리자) */
+export async function deleteNotice(id: number): Promise<void> {
+    return apiFetch(`/api/notices/${id}`, {
+        method: "DELETE",
     });
 }

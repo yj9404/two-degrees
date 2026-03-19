@@ -82,6 +82,32 @@ def migrate():
         else:
             print("users table does not exist, skipping.")
 
+        # ── notices 테이블 추가 ─────────────────────────────
+        if "notices" not in inspector.get_table_names():
+            print("Creating notices table...")
+            if DATABASE_URL.startswith("sqlite"):
+                conn.execute(text("""
+                    CREATE TABLE notices (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title VARCHAR(200) NOT NULL,
+                        content TEXT NOT NULL,
+                        is_popup BOOLEAN DEFAULT 0 NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+                    )
+                """))
+            else:
+                conn.execute(text("""
+                    CREATE TABLE notices (
+                        id SERIAL PRIMARY KEY,
+                        title VARCHAR(200) NOT NULL,
+                        content TEXT NOT NULL,
+                        is_popup BOOLEAN DEFAULT FALSE NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+                    )
+                """))
+        else:
+            print("notices table already exists.")
+
         conn.commit()
     print("Migration completed successfully.")
 

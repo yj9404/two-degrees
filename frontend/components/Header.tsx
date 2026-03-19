@@ -14,17 +14,17 @@ export default function Header() {
         // { label: "공지사항", href: "#" },
         { label: "매칭 현황", href: "/matching-status" },
         { label: "가입하기", href: "/register" },
-        { label: "내 정보 수정", href: "/auth" },
+        { label: "정보 수정", href: "/auth" },
     ].filter(item => item !== undefined); // Simple way to handle commented out if needed, but here I'll just remove the commented line or keep it literally.
     // Actually, I'll just remove the item from the active array but keep the comment in the source if I want, 
     // but the user said "주석처리", so I will literally comment it out in the code.
 
     const activeMenuItems = [
         { label: "서비스 소개", href: "/" },
-        // { label: "공지사항", href: "#" },
+        { label: "공지사항", href: "/notices" },
         { label: "매칭 현황", href: "/matching-status" },
         { label: "가입하기", href: "/register" },
-        { label: "내 정보 수정", href: "/auth" },
+        { label: "정보 수정", href: "/auth" },
     ];
 
     return (

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import FAQSection from "@/components/FAQSection";
 import LiveStats from "@/components/LiveStats";
+import { NoticeModal } from "@/components/NoticeModal";
 
 export const metadata: Metadata = {
   title: "TwoDegrees – 폐쇄형 프라이빗 매칭 서비스",
@@ -24,6 +25,8 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <main className="min-h-[100dvh] pb-12">
+      <NoticeModal />
+
       {/* 1. Hero Section */}
       <section className="relative pt-12 pb-10 px-6 text-center space-y-8 overflow-hidden">
         {/* Background Decoration */}

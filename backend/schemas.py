@@ -272,5 +272,35 @@ class DailyMatchingStats(BaseModel):
     count: int
 
 class DailyMatchingStatsResponse(BaseModel):
-    """날짜별 매칭 통계 응답"""
+    """날짜별 매칭 통계 응답 로직"""
     stats: List[DailyMatchingStats]
+
+
+# ---------------------------------------------------------------------------
+# Notice 스키마
+# ---------------------------------------------------------------------------
+
+class NoticeCreate(BaseModel):
+    """공지사항 생성 요청"""
+    title: str = Field(..., max_length=200, examples=["새로운 공지사항입니다"])
+    content: str = Field(..., examples=["공지사항 내용입니다"])
+    is_popup: bool = Field(False, description="팝업 모달로 띄울지 여부")
+
+
+class NoticeUpdate(BaseModel):
+    """공지사항 수정 요청 (모두 선택 사항)"""
+    title: Optional[str] = Field(None, max_length=200)
+    content: Optional[str] = Field(None)
+    is_popup: Optional[bool] = Field(None)
+
+
+class NoticeRead(BaseModel):
+    """공지사항 조회 응답"""
+    id: int
+    title: str
+    content: str
+    is_popup: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+

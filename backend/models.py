@@ -162,3 +162,21 @@ class Matching(Base):
 
     def __repr__(self) -> str:
         return f"<Matching {self.user_a_id} - {self.user_b_id} (A:{self.user_a_status.value}, B:{self.user_b_status.value})>"
+
+
+# ---------------------------------------------------------------------------
+# Notice 모델
+# ---------------------------------------------------------------------------
+
+class Notice(Base):
+    __tablename__ = "notices"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    is_popup = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Notice id={self.id} title={self.title!r} is_popup={self.is_popup}>"
+

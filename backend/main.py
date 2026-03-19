@@ -21,24 +21,27 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 
 from database import Base, engine, get_db
-from models import Gender, User, Matching, MatchStatus
+from models import Gender, User, Matching, MatchStatus, Notice
 from schemas import (
     AdminAuthRequest,
+    AIRecommendRequest,
+    AIRecommendResult,
     AuthRequest,
     AuthResponse,
+    DailyMatchingStatsResponse,
+    MatchRespondRequest,
+    MatchingCreate,
+    MatchingResponse,
+    MatchingUpdate,
+    NoticeCreate,
+    NoticeRead,
+    NoticeUpdate,
     PresignedUrlResponse,
+    SharedProfileRead,
     UserCreate,
     UserReadAdmin,
     UserStatsResponse,
     UserUpdate,
-    MatchingCreate,
-    MatchingUpdate,
-    MatchingResponse,
-    AIRecommendRequest,
-    AIRecommendResult,
-    SharedProfileRead,
-    MatchRespondRequest,
-    DailyMatchingStatsResponse,
 )
 
 # ---------------------------------------------------------------------------
@@ -964,3 +967,99 @@ def respond_shared_matching(
 
     db.commit()
     return {"message": "정상적으로 처리되었습니다.", "status": payload.status}
+# ---------------------------------------------------------------------------
+# Notice (공지사항) API
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/notices/latest-popup",
+    response_model=Optional[NoticeRead],
+    summary="가장 최근 팝업 공지 조회",
+    tags=["notices"],
+)
+def get_latest_popup_notice(db: Session = Depends(get_db)):
+    """
+    is_popup이 True인 공지 중 가장 최근의 데이터를 하나만 반환합니다.
+    없으면 None을 반환합니다.
+    """
+    notice = db.query(Notice).filter(Notice.is_popup == True).order_by(Notice.created_at.desc()).first()
+    return notice
+
+
+@app.post(
+    "/api/notices",
+    response_model=NoticeRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="공지사항 작성 (관리자)",
+    tags=["notices"],
+)
+def create_notice(
+    payload: NoticeCreate,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """관리자가 새로운 공지사항을 등록합니다."""
+    new_notice = Notice(**payload.model_dump())
+    db.add(new_notice)
+    db.commit()
+    db.refresh(new_notice)
+    return new_notice
+
+
+@app.get(
+    "/api/notices",
+    response_model=list[NoticeRead],
+    summary="공지사항 목록 조회 (전체 공개)",
+    tags=["notices"],
+)
+def list_notices(
+    db: Session = Depends(get_db),
+):
+    """모든 공지사항 목록을 최신순으로 반환합니다. (누구나 조회 가능)"""
+    return db.query(Notice).order_by(Notice.created_at.desc()).all()
+
+
+@app.put(
+    "/api/notices/{notice_id}",
+    response_model=NoticeRead,
+    summary="공지사항 수정 (관리자)",
+    tags=["notices"],
+)
+def update_notice(
+    notice_id: int,
+    payload: NoticeUpdate,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """관리자가 공지사항의 제목, 내용, 팝업 여부를 수정합니다."""
+    notice = db.query(Notice).filter(Notice.id == notice_id).first()
+    if not notice:
+        raise HTTPException(status_code=404, detail="공지사항을 찾을 수 없습니다.")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(notice, key, value)
+
+    db.commit()
+    db.refresh(notice)
+    return notice
+
+
+@app.delete(
+    "/api/notices/{notice_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="공지사항 삭제 (관리자)",
+    tags=["notices"],
+)
+def delete_notice(
+    notice_id: int,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """공지사항을 영구 삭제합니다."""
+    notice = db.query(Notice).filter(Notice.id == notice_id).first()
+    if not notice:
+        raise HTTPException(status_code=404, detail="공지사항을 찾을 수 없습니다.")
+    db.delete(notice)
+    db.commit()
+    return None

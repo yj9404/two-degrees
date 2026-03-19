@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry } from "@/lib/api";
-import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download } from "lucide-react";
-import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult } from "@/types/user";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
+import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2 } from "lucide-react";
+import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, Notice } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -632,12 +632,19 @@ export default function AdminPage() {
     const [toDeleteId, setToDeleteId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
 
-    const [activeTab, setActiveTab] = useState<"USERS" | "MATCHINGS">("USERS");
+    const [activeTab, setActiveTab] = useState<"USERS" | "MATCHINGS" | "NOTICES">("USERS");
     const [matchings, setMatchings] = useState<MatchingResponse[]>([]);
     const [loadingMatchings, setLoadingMatchings] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [creatingMatch, setCreatingMatch] = useState(false);
     const [filterMatchStatus, setFilterMatchStatus] = useState<"" | MatchStatus>("");
+
+    // 공지사항 관련 상태
+    const [notices, setNotices] = useState<Notice[]>([]);
+    const [loadingNotices, setLoadingNotices] = useState(false);
+    const [newNotice, setNewNotice] = useState({ title: "", content: "", is_popup: false });
+    const [creatingNotice, setCreatingNotice] = useState(false);
+    const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
 
     // AI 매칭 관련 상태
     const [showAiModal, setShowAiModal] = useState(false);
@@ -670,12 +677,72 @@ export default function AdminPage() {
         }
     }, [filterMatchStatus]);
 
+    const fetchNotices = useCallback(async () => {
+        setLoadingNotices(true);
+        try {
+            const data = await listNotices();
+            setNotices(data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingNotices(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (authed) {
             fetchUsers();
             fetchMatchings();
+            fetchNotices();
         }
-    }, [authed, fetchUsers, fetchMatchings]);
+    }, [authed, fetchUsers, fetchMatchings, fetchNotices]);
+
+    // ── 공지사항 관련 함수 ─────────────────────
+    const handleCreateNotice = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newNotice.title || !newNotice.content) return;
+        setCreatingNotice(true);
+        try {
+            await createNotice(newNotice);
+            alert("공지사항이 등록되었습니다.");
+            setNewNotice({ title: "", content: "", is_popup: false });
+            fetchNotices();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "등록 실패");
+        } finally {
+            setCreatingNotice(false);
+        }
+    };
+
+    const handleDeleteNotice = async (id: number) => {
+        if (!confirm("정말 삭제하시겠습니까?")) return;
+        try {
+            await deleteNotice(id);
+            fetchNotices();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "삭제 실패");
+        }
+    };
+
+    const handleUpdateNotice = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingNotice || !editingNotice.title || !editingNotice.content) return;
+        setCreatingNotice(true); // Re-using creatingNotice for loading state
+        try {
+            await updateNotice(editingNotice.id, {
+                title: editingNotice.title,
+                content: editingNotice.content,
+                is_popup: editingNotice.is_popup
+            });
+            alert("공지사항이 수정되었습니다.");
+            setEditingNotice(null);
+            fetchNotices();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "수정 실패");
+        } finally {
+            setCreatingNotice(false);
+        }
+    };
 
     // ── 관리자 로그인 ────────────────────────
     const handleLogin = async (e: React.FormEvent) => {
@@ -963,6 +1030,12 @@ export default function AdminPage() {
                         onClick={() => setActiveTab("MATCHINGS")}
                     >
                         매칭 관리 ({matchings.length})
+                    </button>
+                    <button
+                        className={`font-semibold pb-2 border-b-2 transition-colors ${activeTab === "NOTICES" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+                        onClick={() => setActiveTab("NOTICES")}
+                    >
+                        공지사항 ({notices.length})
                     </button>
                 </div>
 
@@ -1264,6 +1337,106 @@ export default function AdminPage() {
                         )}
                     </div>
                 )}
+
+                {/* --- 공지사항 탭 --- */}
+                {activeTab === "NOTICES" && (
+                    <div className="space-y-6">
+                        {/* 새로운 공지 작성 */}
+                        <Card className="shadow-sm border-blue-100 bg-blue-50/10">
+                            <CardHeader className="pb-3 px-6 pt-6 flex flex-row items-center gap-2">
+                                <Megaphone className="w-5 h-5 text-blue-600" />
+                                <CardTitle className="text-slate-900 text-lg">새 공지사항 작성</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4 px-6 pb-6">
+                                <div className="space-y-2">
+                                    <Label className="text-slate-700 font-semibold text-sm">제목</Label>
+                                    <Input
+                                        placeholder="공지사항 제목을 입력하세요"
+                                        value={newNotice.title}
+                                        onChange={(e) => setNewNotice({ ...newNotice, title: e.target.value })}
+                                        className="bg-white"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-slate-700 font-semibold text-sm">내용</Label>
+                                    <Textarea
+                                        placeholder="공지사항 내용을 입력하세요"
+                                        value={newNotice.content}
+                                        onChange={(e) => setNewNotice({ ...newNotice, content: e.target.value })}
+                                        className="min-h-[120px] bg-white"
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-slate-900 font-bold block">팝업 노출 여부</Label>
+                                        <p className="text-[10px] text-slate-500 font-medium tracking-tight">체크 시 메인 페이지 접속 시 팝업으로 노출됩니다.</p>
+                                    </div>
+                                    <Switch
+                                        checked={newNotice.is_popup}
+                                        onCheckedChange={(val) => setNewNotice({ ...newNotice, is_popup: val })}
+                                        className="data-[state=checked]:bg-blue-600"
+                                    />
+                                </div>
+                                <Button
+                                    onClick={handleCreateNotice}
+                                    disabled={creatingNotice || !newNotice.title || !newNotice.content}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12"
+                                >
+                                    {creatingNotice ? "저장 중..." : "공지사항 등록하기"}
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        {/* 공지사항 목록 */}
+                        <div className="space-y-3">
+                            <h3 className="text-slate-900 font-bold text-sm tracking-tight flex items-center gap-2 px-1">
+                                검색 결과 <span className="text-blue-600">{notices.length}</span>건
+                            </h3>
+                            {notices.length === 0 ? (
+                                <p className="text-center text-slate-400 py-12 bg-white rounded-xl border border-slate-100">등록된 공지사항이 없습니다.</p>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-3">
+                                    {notices.map((notice) => (
+                                        <Card key={notice.id} className="shadow-sm border-slate-100 hover:border-blue-200 transition-colors group">
+                                            <CardContent className="p-5 flex items-start justify-between gap-4">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {notice.is_popup && (
+                                                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold shrink-0">팝업</span>
+                                                        )}
+                                                        <h4 className="text-sm font-bold text-slate-900 truncate">{notice.title}</h4>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-2 break-all">{notice.content}</p>
+                                                    <span className="text-[10px] text-slate-400 font-medium">
+                                                        {new Date(notice.created_at).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => setEditingNotice(notice)}
+                                                        className="text-slate-400 hover:text-blue-500 hover:bg-blue-50 h-8 w-8 p-0 transition-opacity"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteNotice(notice.id)}
+                                                        className="text-slate-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 p-0 transition-opacity"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* 상세 다이얼로그 */}
@@ -1381,6 +1554,58 @@ export default function AdminPage() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* 공지사항 수정 다이얼로그 */}
+            {editingNotice && (
+                <Dialog open={!!editingNotice} onOpenChange={(open) => !open && setEditingNotice(null)}>
+                    <DialogContent className="max-w-md" aria-describedby={undefined}>
+                        <DialogHeader>
+                            <DialogTitle className="text-slate-900 flex items-center gap-2">
+                                <Edit2 className="w-5 h-5 text-blue-600" />
+                                공지사항 수정
+                            </DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleUpdateNotice} className="space-y-4 py-2">
+                            <div className="space-y-2">
+                                <Label className="text-slate-700 font-semibold text-sm">제목</Label>
+                                <Input
+                                    value={editingNotice.title}
+                                    onChange={(e) => setEditingNotice({ ...editingNotice, title: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-slate-700 font-semibold text-sm">내용</Label>
+                                <Textarea
+                                    value={editingNotice.content}
+                                    onChange={(e) => setEditingNotice({ ...editingNotice, content: e.target.value })}
+                                    className="min-h-[150px]"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                <div className="space-y-0.5">
+                                    <Label className="text-slate-900 font-bold block">팝업 노출 여부</Label>
+                                    <p className="text-[10px] text-slate-500 font-medium tracking-tight">체크 시 메인 페이지에 팝업으로 노출됩니다.</p>
+                                </div>
+                                <Switch
+                                    checked={editingNotice.is_popup}
+                                    onCheckedChange={(val) => setEditingNotice({ ...editingNotice, is_popup: val })}
+                                    className="data-[state=checked]:bg-blue-600"
+                                />
+                            </div>
+                            <DialogFooter className="gap-2 pt-2">
+                                <Button type="button" variant="outline" onClick={() => setEditingNotice(null)}>취소</Button>
+                                <Button
+                                    type="submit"
+                                    disabled={creatingNotice}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-11 px-6 rounded-xl"
+                                >
+                                    {creatingNotice ? "저장 중..." : "수정 완료"}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+            )}
         </main>
     );
 }
