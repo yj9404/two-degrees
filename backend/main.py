@@ -730,6 +730,11 @@ def ai_recommend_matchings(
 
     # 3. 유효한 후보 유저들 조회
     candidates = db.query(User).filter(User.id.in_(valid_candidate_ids)).all()
+    
+    # 타겟 유저와 추천인이 같은 경우 매칭 후보에서 제외
+    if getattr(target_user, "referrer_name", None):
+        candidates = [c for c in candidates if getattr(c, "referrer_name", None) != target_user.referrer_name]
+
     if not candidates:
         return []
 
