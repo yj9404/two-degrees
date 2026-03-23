@@ -630,6 +630,192 @@ function UserCard({
 }
 
 // ─────────────────────────────────────────────
+// 프로필 비교 다이얼로그
+// ─────────────────────────────────────────────
+function CompareUsersDialog({
+    baseUser,
+    targetUser,
+    onClose,
+}: {
+    baseUser: UserReadAdmin | null;
+    targetUser: UserReadAdmin | null;
+    onClose: () => void;
+}) {
+    const [zoomedPhotoUrl, setZoomedPhotoUrl] = useState<string | null>(null);
+
+    if (!baseUser || !targetUser) return null;
+
+    const buildRows = (user: UserReadAdmin): [string, React.ReactNode][] => [
+        ["이름", user.name],
+        ["성별", GENDER_LABEL[user.gender] ?? user.gender],
+        ["출생연도", user.birth_year],
+        ["직업", user.job],
+        ["연락처", user.contact],
+        ["소개한 지인", user.referrer_name],
+        ["활동지역", user.active_area || "-"],
+        ["키", user.height ? `${user.height}cm` : "-"],
+        ["학력", user.education || "-"],
+        ["직장위치", user.workplace || "-"],
+        ["MBTI", user.mbti || "-"],
+        ["종교", user.religion || "-"],
+        ["흡연", user.smoking_status ? SMOKING_LABEL[user.smoking_status] : "-"],
+        ["음주", user.drinking_status ? DRINKING_LABEL[user.drinking_status] : "-"],
+        ["결혼생각", user.marriage_intent ? MARRIAGE_INTENT_LABEL[user.marriage_intent] : "-"],
+        ["아이생각", user.child_plan ? CHILD_PLAN_LABEL[user.child_plan] : "-"],
+        ["운동", user.exercise || "-"],
+        ["취미", user.hobbies || "-"],
+        ["선호 연령", user.age_preference?.length ? user.age_preference.map(p => AGE_PREF_LABEL[p] || p).join(", ") : "-"],
+        ["연상 나이차", user.age_gap_older ? `최대 ${user.age_gap_older}살` : "-"],
+        ["연하 나이차", user.age_gap_younger ? `최대 ${user.age_gap_younger}살` : "-"],
+        ["원하는 조건", user.desired_conditions],
+        ["기피 조건", user.deal_breakers],
+        ["자기소개", user.intro || "-"],
+        [
+            "인스타그램",
+            user.instagram_id ? (
+                <a
+                    href={`https://instagram.com/${user.instagram_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    @{user.instagram_id}
+                </a>
+            ) : (
+                "-"
+            ),
+        ],
+    ];
+
+    const rowsA = buildRows(baseUser);
+    const rowsB = buildRows(targetUser);
+
+    return (
+        <>
+            <Dialog open onOpenChange={onClose}>
+                <DialogContent
+                    className="max-w-4xl max-h-[85vh] overflow-y-auto"
+                    aria-describedby={undefined}
+                >
+                    <DialogHeader>
+                        <DialogTitle className="text-slate-900 border-b pb-2">
+                            프로필 비교 (기준 vs 추천 대상)
+                        </DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="grid grid-cols-2 gap-6 py-2">
+                        {/* User A Column */}
+                        <div className="space-y-4 border-r pr-4">
+                            <div className="font-bold text-lg text-blue-700 flex items-center justify-between">
+                                <span>기준: {baseUser.name}</span>
+                                <span className="text-sm font-normal text-slate-500 bg-blue-50 px-2 py-0.5 rounded">
+                                    {baseUser.gender === "MALE" ? "남성" : "여성"}
+                                </span>
+                            </div>
+                            {baseUser.photo_urls && baseUser.photo_urls.length > 0 && (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {baseUser.photo_urls.map((url, idx) => (
+                                        <div
+                                            key={url}
+                                            className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 cursor-pointer group"
+                                            onClick={() => setZoomedPhotoUrl(url)}
+                                        >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                                src={url}
+                                                alt={`${baseUser.name} 사진 ${idx + 1}`}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                            />
+                                            {idx === 0 && (
+                                                <span className="absolute bottom-1 left-1 text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded z-10">대표</span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <dl className="space-y-3 pt-2">
+                                {rowsA.map(([label, value], idx) => (
+                                    <div key={idx} className="grid grid-cols-[6rem_1fr] gap-2 text-sm">
+                                        <dt className="text-slate-500 font-medium shrink-0">{label}</dt>
+                                        <dd className="text-slate-900 break-words">{value ?? "-"}</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
+
+                        {/* User B Column */}
+                        <div className="space-y-4 pl-2">
+                            <div className="font-bold text-lg text-pink-700 flex items-center justify-between">
+                                <span>대상: {targetUser.name}</span>
+                                <span className="text-sm font-normal text-slate-500 bg-pink-50 px-2 py-0.5 rounded">
+                                    {targetUser.gender === "MALE" ? "남성" : "여성"}
+                                </span>
+                            </div>
+                            {targetUser.photo_urls && targetUser.photo_urls.length > 0 && (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {targetUser.photo_urls.map((url, idx) => (
+                                        <div
+                                            key={url}
+                                            className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 cursor-pointer group"
+                                            onClick={() => setZoomedPhotoUrl(url)}
+                                        >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                                src={url}
+                                                alt={`${targetUser.name} 사진 ${idx + 1}`}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                            />
+                                            {idx === 0 && (
+                                                <span className="absolute bottom-1 left-1 text-[10px] bg-pink-600 text-white px-1.5 py-0.5 rounded z-10">대표</span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <dl className="space-y-3 pt-2">
+                                {rowsB.map(([label, value], idx) => (
+                                    <div key={idx} className="grid grid-cols-[6rem_1fr] gap-2 text-sm">
+                                        <dt className="text-slate-500 font-medium shrink-0">{label}</dt>
+                                        <dd className="text-slate-900 break-words">{value ?? "-"}</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
+                    </div>
+
+                    <div className="pt-4 border-t mt-4 flex justify-end">
+                        <Button variant="outline" className="w-full" onClick={onClose}>
+                            닫기
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* 사진 확대 다이얼로그 */}
+            {zoomedPhotoUrl && (
+                <Dialog open={true} onOpenChange={(open: boolean) => { if (!open) setZoomedPhotoUrl(null); }}>
+                    <DialogContent
+                        className="max-w-3xl bg-slate-900 border-none shadow-lg p-6 flex flex-col items-center [&>button]:text-white/70 [&>button:hover]:text-white"
+                        aria-describedby={undefined}
+                    >
+                        <DialogTitle className="sr-only">사진 확대</DialogTitle>
+                        <div className="relative w-full flex items-center justify-center bg-black/50 rounded-lg overflow-hidden p-2 min-h-[50vh]">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={zoomedPhotoUrl}
+                                alt="확대 이미지"
+                                className="max-w-full max-h-[60vh] object-contain rounded-md select-none"
+                            />
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
+        </>
+    );
+}
+
+// ─────────────────────────────────────────────
 // 메인 페이지
 // ─────────────────────────────────────────────
 export default function AdminPage() {
@@ -667,6 +853,7 @@ export default function AdminPage() {
     const [aiLoading, setAiLoading] = useState(false);
     const [aiResults, setAiResults] = useState<AIRecommendResult[]>([]);
     const [aiTargetUserId, setAiTargetUserId] = useState<string | null>(null);
+    const [compareCandidate, setCompareCandidate] = useState<UserReadAdmin | null>(null);
 
     const [selectedMatching, setSelectedMatching] = useState<MatchingResponse | null>(null);
 
@@ -1461,6 +1648,12 @@ export default function AdminPage() {
                 onClose={() => setSelectedUser(null)}
             />
 
+            <CompareUsersDialog
+                baseUser={users.find(u => u.id === aiTargetUserId) || null}
+                targetUser={compareCandidate}
+                onClose={() => setCompareCandidate(null)}
+            />
+
             <MatchingDetailDialog
                 matching={selectedMatching}
                 onClose={() => setSelectedMatching(null)}
@@ -1522,7 +1715,10 @@ export default function AdminPage() {
 
                                     return (
                                         <Card key={result.candidate_id} className="border-indigo-100 overflow-hidden shadow-sm">
-                                            <div className="bg-gradient-to-r from-indigo-50 to-white px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
+                                            <div 
+                                                className="bg-gradient-to-r from-indigo-50 to-white px-4 py-3 border-b border-indigo-100 flex items-center justify-between cursor-pointer hover:bg-indigo-50/50 transition-colors"
+                                                onClick={() => setCompareCandidate(candidate)}
+                                            >
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 rounded-full bg-white text-indigo-600 flex items-center justify-center text-sm shadow-sm">
                                                         {candidate.gender === "MALE" ? "👨" : "👩"}
