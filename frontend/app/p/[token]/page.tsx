@@ -16,11 +16,34 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, MapPin, Briefcase, Ruler, Sparkles, CheckCircle2, XCircle, GraduationCap, Building2, Fingerprint, Church, Cigarette, Wine, Dumbbell, Palette, Cake, MessageCircle } from "lucide-react";
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
+import {
+    Clock,
+    MapPin,
+    Briefcase,
+    Ruler,
+    Sparkles,
+    CheckCircle2,
+    XCircle,
+    GraduationCap,
+    Building2,
+    Fingerprint,
+    Church,
+    Cigarette,
+    Wine,
+    Dumbbell,
+    Palette,
+    Cake,
+    MessageCircle,
+    ShieldCheck
+} from "lucide-react";
 
 export default function SharedProfilePage() {
     const { token } = useParams<{ token: string }>();
@@ -148,6 +171,27 @@ export default function SharedProfilePage() {
         );
     }
 
+    // Derive badge data
+    const badges: { label: string; icon: React.ReactNode }[] = [];
+    if (profile.age) badges.push({ label: `${profile.age}세`, icon: <Cake className="w-3 h-3" /> });
+    if (profile.job) badges.push({ label: profile.job, icon: <Briefcase className="w-3 h-3" /> });
+    if (profile.active_area) badges.push({ label: profile.active_area, icon: <MapPin className="w-3 h-3" /> });
+    if (profile.height) badges.push({ label: `${profile.height}cm`, icon: <Ruler className="w-3 h-3" /> });
+    if (profile.education) badges.push({ label: profile.education, icon: <GraduationCap className="w-3 h-3" /> });
+    if (profile.workplace) badges.push({ label: profile.workplace, icon: <Building2 className="w-3 h-3" /> });
+    if (profile.mbti) badges.push({ label: profile.mbti, icon: <Fingerprint className="w-3 h-3" /> });
+    if (profile.religion) badges.push({ label: profile.religion, icon: <Church className="w-3 h-3" /> });
+    if (profile.exercise) badges.push({ label: profile.exercise, icon: <Dumbbell className="w-3 h-3" /> });
+    if (profile.hobbies) badges.push({ label: profile.hobbies, icon: <Palette className="w-3 h-3" /> });
+    if (profile.smoking_status) {
+        const label = profile.smoking_status === "SMOKER" ? "흡연" : profile.smoking_status === "NON_SMOKER" ? "비흡연" : null;
+        if (label) badges.push({ label, icon: <Cigarette className="w-3 h-3" /> });
+    }
+    if (profile.drinking_status) {
+        const label = profile.drinking_status === "DRINKER" ? "자주 마심" : profile.drinking_status === "SOCIAL_DRINKER" ? "상황에 따라" : profile.drinking_status === "NON_DRINKER" ? "안 마심" : null;
+        if (label) badges.push({ label, icon: <Wine className="w-3 h-3" /> });
+    }
+
     return (
         <div
             className="min-h-screen bg-slate-50 select-none pb-24"
@@ -173,7 +217,7 @@ export default function SharedProfilePage() {
                 )}
 
                 <div className="flex-1 overflow-y-auto pb-4 select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
-                    {/* Photo Gallery with Swipe Capability */}
+                    {/* ── SECTION 1: Photo Gallery ── */}
                     <div
                         ref={scrollRef}
                         className="relative aspect-[3/4] bg-slate-900 overflow-x-auto flex snap-x snap-mandatory scrollbar-hide"
@@ -183,7 +227,6 @@ export default function SharedProfilePage() {
                         {profile.photo_urls && profile.photo_urls.length > 0 ? (
                             profile.photo_urls.map((url, idx) => (
                                 <div key={idx} className="relative w-full h-full flex-shrink-0 snap-center">
-                                    {/* Blurred background for a premium look */}
                                     <Image
                                         src={url}
                                         alt=""
@@ -199,7 +242,6 @@ export default function SharedProfilePage() {
                                         priority={idx === 0}
                                         draggable={false}
                                     />
-                                    {/* Touch Prevention Overlay - Moved inside each item to allow container scrolling */}
                                     <div
                                         className="absolute inset-0 z-20 bg-transparent"
                                         style={{ WebkitTouchCallout: 'none' }}
@@ -214,7 +256,7 @@ export default function SharedProfilePage() {
                             </div>
                         )}
 
-                        {/* Information Belt (Stripe) Overlay - Fixed relative to the gallery area */}
+                        {/* Overlay: age + job */}
                         <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-black/40 backdrop-blur-md text-white border-t border-white/10 z-30 pointer-events-none">
                             <div className="flex items-baseline gap-2">
                                 <h1 className="text-2xl font-bold tracking-tight">{profile.age}세</h1>
@@ -244,7 +286,6 @@ export default function SharedProfilePage() {
                                         className="object-cover"
                                         draggable={false}
                                     />
-                                    {/* Security Layer for Thumbnails */}
                                     <div
                                         className="absolute inset-0 z-10 bg-transparent"
                                         onContextMenu={(e) => e.preventDefault()}
@@ -254,6 +295,7 @@ export default function SharedProfilePage() {
                         </div>
                     )}
 
+                    {/* Swipe hint + privacy notice */}
                     <div className="px-6 space-y-1.5">
                         {profile.photo_urls && profile.photo_urls.length > 1 && (
                             <p className="text-[10px] text-slate-400 flex items-center gap-1">
@@ -266,102 +308,126 @@ export default function SharedProfilePage() {
                         </p>
                     </div>
 
-                    <div className="p-6 space-y-8">
-                        {/* Info Grid */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <InfoItem icon={<Briefcase />} label="직업" value={profile.job} />
-                            <InfoItem icon={<Cake />} label="출생연도" value={`${profile.birth_year}년생`} />
-                            <InfoItem icon={<MapPin />} label="주 활동지역" value={profile.active_area} />
-                            <InfoItem icon={<Ruler />} label="키" value={profile.height ? `${profile.height}cm` : null} />
-                            <InfoItem icon={<GraduationCap />} label="학력" value={profile.education} />
-                            <InfoItem icon={<Building2 />} label="직장 또는 학교 위치" value={profile.workplace} />
-                            <InfoItem icon={<Fingerprint />} label="MBTI" value={profile.mbti} />
-                            <InfoItem icon={<Church />} label="종교" value={profile.religion} />
-                            <InfoItem icon={<Dumbbell />} label="운동" value={profile.exercise} />
-                            <InfoItem icon={<Palette />} label="취미" value={profile.hobbies} />
-                            <InfoItem
-                                icon={<Cigarette />}
-                                label="흡연"
-                                value={profile.smoking_status === "SMOKER" ? "흡연" : profile.smoking_status === "NON_SMOKER" ? "비흡연" : null}
-                            />
-                            <InfoItem
-                                icon={<Wine />}
-                                label="음주"
-                                value={profile.drinking_status === "DRINKER" ? "자주 마심" : profile.drinking_status === "SOCIAL_DRINKER" ? "상황에 따라" : profile.drinking_status === "NON_DRINKER" ? "안 마심" : null}
-                            />
-                        </div>
+                    <div className="p-6 space-y-5">
+                        {/* ── SECTION 2: Hero – Storytelling (추천 사유) ── */}
+                        <Card className="border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm">
+                            <CardContent className="p-5">
+                                <div className="flex items-center gap-1.5 mb-3">
+                                    <span className="text-lg">💌</span>
+                                    <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">주선자의 추천 편지</span>
+                                </div>
+                                <div className="relative">
+                                    {/* decorative opening quote */}
+                                    <span className="absolute -top-2 -left-1 text-5xl text-amber-200 font-serif leading-none select-none">&ldquo;</span>
+                                    <p className="text-slate-700 text-[15px] leading-relaxed pt-4 pl-4 pr-1 italic font-medium">
+                                        {profile.ai_reason ?? "주선자가 직접 선별하여 추천한 매칭입니다."}
+                                    </p>
+                                    <span className="float-right text-5xl text-amber-200 font-serif leading-none select-none" style={{ marginTop: '-1rem' }}>&rdquo;</span>
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                        {/* AI Recommendation Reason */}
-                        <div className="space-y-3 pt-4">
-                            <div className="flex items-center gap-2">
-                                <div className="p-1 px-2 bg-blue-100 text-blue-700 rounded text-[10px] font-bold uppercase tracking-tight">AI Matching Insight</div>
-                            </div>
-                            <Card className="border-none bg-blue-50/50 shadow-none">
-                                <CardContent className={`p-4 pt-4 text-slate-700 text-sm leading-relaxed ${profile.ai_reason ? 'italic' : ''}`}>
-                                    {profile.ai_reason ? `"${profile.ai_reason}"` : "관리자가 직접 매칭하였습니다."}
-                                </CardContent>
-                            </Card>
-                        </div>
+                        {/* ── SECTION 3: Trust Badge (검증 완료) ── */}
+                        <Card className="border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 shadow-sm">
+                            <CardContent className="p-4 flex items-start gap-3">
+                                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold text-emerald-800 mb-0.5">주선자 &amp; AI 검증 완료</p>
+                                    <p className="text-[12px] text-emerald-700 leading-snug">
+                                        두 분이 설정한 필수 기피 조건(종교, 흡연 등)을 모두 통과한 매칭입니다.
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* ── SECTION 4: Basic Info Accordion ── */}
+                        {badges.length > 0 && (
+                            <Accordion type="single" collapsible className="border border-slate-100 rounded-xl overflow-hidden">
+                                <AccordionItem value="info" className="border-none">
+                                    <AccordionTrigger className="px-4 py-3 text-sm font-semibold text-slate-700 hover:no-underline hover:bg-slate-50">
+                                        기본 정보 보기
+                                    </AccordionTrigger>
+                                    <AccordionContent className="px-4 pb-4">
+                                        <div className="flex flex-wrap gap-2 pt-1">
+                                            {badges.map((badge, i) => (
+                                                <span
+                                                    key={i}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-full"
+                                                >
+                                                    {badge.icon}
+                                                    {badge.label}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        )}
                     </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="p-4 pt-2 border-t border-slate-100 grid grid-cols-2 gap-3 fixed bottom-0 max-w-md w-full bg-white/80 backdrop-blur-md">
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="outline" className="h-12 text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100 font-semibold">
-                                거절하기
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-2xl">
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>매칭을 거절하시겠습니까?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    이 선택은 변경할 수 없으며, 확인을 누르면 링크가 즉시 만료됩니다.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel className="rounded-xl">취소</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleRespond("REJECTED")}
-                                    className="bg-red-500 hover:bg-red-600 rounded-xl"
-                                >
-                                    거절 확정
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                {/* ── CTA Nudge + Action Buttons ── */}
+                <div className="p-4 pt-2 border-t border-slate-100 fixed bottom-0 max-w-md w-full bg-white/90 backdrop-blur-md space-y-3">
+                    <p className="text-center text-[12px] text-slate-500 font-medium">
+                        ✨ 자세한 매력은 직접 대화하며 알아가 보세요!
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline" className="h-12 text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100 font-semibold">
+                                    거절하기
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-2xl">
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>매칭을 거절하시겠습니까?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        이 선택은 변경할 수 없으며, 확인을 누르면 링크가 즉시 만료됩니다.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel className="rounded-xl">취소</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={() => handleRespond("REJECTED")}
+                                        className="bg-red-500 hover:bg-red-600 rounded-xl"
+                                    >
+                                        거절 확정
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
 
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button className="h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold">
-                                수락하기
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-2xl">
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>매칭을 수락하시겠습니까?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    상대방도 수락할 경우 서로의 연락처가 공개됩니다. 이 선택은 취소할 수 없으며, 확인을 누르면 링크가 즉시 만료됩니다.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel className="rounded-xl">취소</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleRespond("ACCEPTED")}
-                                    className="bg-blue-600 hover:bg-blue-700 rounded-xl"
-                                >
-                                    수락 확정
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button className="h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+                                    수락하기
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-2xl">
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>매칭을 수락하시겠습니까?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        상대방도 수락할 경우 서로의 연락처가 공개됩니다. 이 선택은 취소할 수 없으며, 확인을 누르면 링크가 즉시 만료됩니다.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel className="rounded-xl">취소</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={() => handleRespond("ACCEPTED")}
+                                        className="bg-blue-600 hover:bg-blue-700 rounded-xl"
+                                    >
+                                        수락 확정
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                 </div>
 
-                {/* Footer Inquiry for Profile Page */}
-                <div className="pb-12 pt-6 text-center space-y-3">
+                {/* Footer Inquiry */}
+                <div className="pb-36 pt-6 text-center space-y-3">
                     <p className="text-slate-400 text-[10px] font-medium tracking-tight">링크 작동에 문제가 있나요?</p>
-                    <a 
+                    <a
                         href="http://pf.kakao.com/_jnxiZX/chat"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -371,19 +437,6 @@ export default function SharedProfilePage() {
                     </a>
                 </div>
             </div>
-        </div>
-    );
-}
-
-function InfoItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number | null | undefined }) {
-    if (!value) return null;
-    return (
-        <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-            <div className="flex items-center gap-1.5 text-slate-400">
-                {React.cloneElement(icon as React.ReactElement<any>, { className: "w-3.5 h-3.5" })}
-                <span className="text-[10px] uppercase tracking-wider font-semibold">{label}</span>
-            </div>
-            <p className="text-slate-900 font-semibold text-sm leading-tight">{value}</p>
         </div>
     );
 }
