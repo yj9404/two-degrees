@@ -311,30 +311,30 @@ export default function SharedProfilePage() {
                     <div className="p-6 space-y-5">
                         {/* ── SECTION 2: Hero – Storytelling (추천 사유) ── */}
                         <Card className="border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm">
-                            <CardContent className="p-5">
-                                <div className="flex items-center gap-1.5 mb-3">
+                            <CardContent className="px-5 py-0">
+                                <div className="flex items-center gap-1.5 mb-1.5">
                                     <span className="text-lg">💌</span>
                                     <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">주선자의 추천 편지</span>
                                 </div>
                                 <div className="relative">
                                     {/* decorative opening quote */}
                                     <span className="absolute -top-2 -left-1 text-5xl text-amber-200 font-serif leading-none select-none">&ldquo;</span>
-                                    <p className="text-slate-700 text-[15px] leading-relaxed pt-4 pl-4 pr-1 italic font-medium">
+                                    <p className="text-slate-700 text-[15px] leading-relaxed pt-2 pl-4 pr-1 italic font-medium">
                                         {profile.ai_reason ?? "주선자가 직접 선별하여 추천한 매칭입니다."}
                                     </p>
-                                    <span className="float-right text-5xl text-amber-200 font-serif leading-none select-none" style={{ marginTop: '-1rem' }}>&rdquo;</span>
+                                    <span className="float-right text-5xl text-amber-200 font-serif leading-none select-none" style={{ marginTop: '-1.25rem' }}>&rdquo;</span>
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* ── SECTION 3: Trust Badge (검증 완료) ── */}
                         <Card className="border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 shadow-sm">
-                            <CardContent className="p-4 flex items-start gap-3">
+                            <CardContent className="px-4 py-0 flex items-start gap-3">
                                 <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                                 <div>
                                     <p className="text-sm font-semibold text-emerald-800 mb-0.5">주선자 &amp; AI 검증 완료</p>
                                     <p className="text-[12px] text-emerald-700 leading-snug">
-                                        두 분이 설정한 필수 기피 조건(종교, 흡연 등)을 모두 통과한 매칭입니다.
+                                        설정하신 조건들을 종합적으로 분석하여 높은 적합도를 보인 인연입니다.
                                     </p>
                                 </div>
                             </CardContent>
