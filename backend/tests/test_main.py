@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from database import Base, get_db
-from main import app
+from main import app, verify_admin
 from models import User, Matching
 
 # ---------------------------------------------------------------------------
@@ -30,6 +30,7 @@ def override_get_db():
         db.close()
 
 app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[verify_admin] = lambda: "admin"
 
 
 @pytest.fixture(scope="function")
@@ -54,6 +55,61 @@ def client(db_session):
     """
     with TestClient(app) as c:
         yield c
+
+
+def test_get_user_stats_empty(client):
+    """
+    [User API] 데이터가 없을 때 유저 통계 계산 결과가 0으로 정상 반환되는지 검증
+    """
+    response = client.get("/api/users/stats")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_active"] == 0
+    assert data["total_users"] == 0
+    assert data["total_matchings"] == 0
+    assert data["male_active"] == 0
+    assert data["female_active"] == 0
+    assert data["male_ratio"] == 0.0
+    assert data["female_ratio"] == 0.0
+
+
+def test_get_user_stats_success(client):
+    """
+    [User API] 정상적인 유저 통계 계산 결과가 반환되는지 검증
+    """
+    base_payload = {
+        "birth_year": 1990,
+        "job": "개발자",
+        "password": "testpassword",
+        "referrer_name": "김철수",
+        "desired_conditions": "성격이 밝고 유머 감각이 있는 분",
+        "deal_breakers": "흡연자, 종교 강요"
+    }
+
+    # 1. Active Male 1
+    client.post("/api/users", json={**base_payload, "name": "남1", "gender": "MALE", "contact": "010-1111-1111"})
+    # 2. Active Male 2
+    res_m2 = client.post("/api/users", json={**base_payload, "name": "남2", "gender": "MALE", "contact": "010-2222-2222"})
+    user_m2_id = res_m2.json()["id"]
+    # 3. Active Female 1
+    client.post("/api/users", json={**base_payload, "name": "여1", "gender": "FEMALE", "contact": "010-3333-3333"})
+
+    # 남2 유저를 Inactive로 변경
+    res_update = client.put(f"/api/users/{user_m2_id}", json={"is_active": False})
+    assert res_update.status_code == 200
+
+    response = client.get("/api/users/stats")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_users"] == 3
+    assert data["total_matchings"] == 0
+    assert data["total_active"] == 2
+    assert data["male_active"] == 1
+    assert data["female_active"] == 1
+    assert data["male_ratio"] == 50.0
+    assert data["female_ratio"] == 50.0
 
 
 def test_register_user_success(client):
