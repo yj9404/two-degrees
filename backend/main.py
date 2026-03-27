@@ -4,6 +4,7 @@ TwoDegrees FastAPI 애플리케이션 엔트리포인트
 """
 
 from typing import Optional
+import logging
 import os
 import secrets
 import hashlib
@@ -43,6 +44,8 @@ from schemas import (
     UserStatsResponse,
     UserUpdate,
 )
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # 앱 초기화 및 테이블 자동 생성
@@ -674,7 +677,7 @@ def get_daily_matching_stats(db: Session = Depends(get_db)):
             return {"stats": [{"date": str(s.date), "count": s.count} for s in stats if s.date]}
         except Exception as e2:
             db.rollback()
-            print(f"Daily stats fallback error: {e2}")
+            logger.error(f"Daily stats fallback error: {e2}")
             return {"stats": []}
 
 
