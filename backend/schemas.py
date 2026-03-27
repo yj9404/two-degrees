@@ -9,8 +9,6 @@ Pydantic v2 기반 요청·응답 스키마 정의
 - AuthResponse  : 인증 응답 (user_id 반환)
 """
 
-from __future__ import annotations
-
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
