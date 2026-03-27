@@ -57,6 +57,28 @@ def client(db_session):
         yield c
 
 
+def test_cors_origins(client):
+    """
+    [CORS] 허용된 출처와 허용되지 않은 출처에 대한 CORS 정책 동작 검증
+    """
+    # 허용된 출처 테스트
+    headers_allowed = {
+        "Origin": "http://localhost:3000",
+        "Access-Control-Request-Method": "GET"
+    }
+    response_allowed = client.options("/api/users/stats", headers=headers_allowed)
+    assert response_allowed.status_code == 200
+    assert response_allowed.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+    # 허용되지 않은 출처 테스트
+    headers_disallowed = {
+        "Origin": "http://evil.com",
+        "Access-Control-Request-Method": "GET"
+    }
+    response_disallowed = client.options("/api/users/stats", headers=headers_disallowed)
+    assert response_disallowed.status_code == 400
+
+
 def test_get_user_stats_empty(client):
     """
     [User API] 데이터가 없을 때 유저 통계 계산 결과가 0으로 정상 반환되는지 검증
