@@ -7,7 +7,7 @@ import secrets
 import uuid
 from enum import Enum as PyEnum
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -21,7 +21,6 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.sqlite import TEXT as UUID_TEXT
 
 from database import Base
 
@@ -79,7 +78,7 @@ class User(Base):
     # SQLite는 네이티브 UUID 타입을 지원하지 않으므로 TEXT로 저장합니다.
     # 운영 DB(PostgreSQL 등)로 전환 시 UUID 타입으로 교체하십시오.
     id = Column(
-        UUID_TEXT,
+        Text,
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
         nullable=False,
@@ -135,13 +134,13 @@ class Matching(Base):
     __tablename__ = "matchings"
 
     id = Column(
-        UUID_TEXT,
+        Text,
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
         nullable=False,
     )
-    user_a_id = Column(UUID_TEXT, ForeignKey("users.id"), nullable=False)
-    user_b_id = Column(UUID_TEXT, ForeignKey("users.id"), nullable=False)
+    user_a_id = Column(Text, ForeignKey("users.id"), nullable=False)
+    user_b_id = Column(Text, ForeignKey("users.id"), nullable=False)
     
     user_a_status = Column(Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING)
     user_b_status = Column(Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING)
