@@ -751,19 +751,14 @@ def ai_recommend_matchings(
     from schemas import UserRead
     
     # UserRead는 이름, 연락처(X), 비밀번호(X)를 다루며, 
-    # 이름과 지인이름도 추가로 프롬프트에서 가려주기 위해 pop 처리합니다.
-    target_dict = UserRead.model_validate(target_user).model_dump(mode='json')
-    target_dict.pop("name", None)
-    target_dict.pop("referrer_name", None)
-    target_dict.pop("photo_urls", None)
+    # 이름과 지인이름도 추가로 프롬프트에서 가려주기 위해 exclude 처리합니다.
+    exclude_fields = {"name", "referrer_name", "photo_urls"}
+    target_dict = UserRead.model_validate(target_user).model_dump(mode='json', exclude=exclude_fields)
 
-    candidates_dict_list = []
-    for c in candidates:
-        c_dict = UserRead.model_validate(c).model_dump(mode='json')
-        c_dict.pop("name", None)
-        c_dict.pop("referrer_name", None)
-        c_dict.pop("photo_urls", None)
-        candidates_dict_list.append(c_dict)
+    candidates_dict_list = [
+        UserRead.model_validate(c).model_dump(mode='json', exclude=exclude_fields)
+        for c in candidates
+    ]
 
     # 5. Gemini API 연동 모듈 호출
     from utils.gemini import get_ai_recommendations
