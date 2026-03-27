@@ -218,9 +218,17 @@ def get_user_stats(db: Session = Depends(get_db)):
     total_users = db.query(User).count()
     total_matchings = db.query(Matching).count()
     
-    active_users = db.query(User).filter(User.is_active == True).all()
-    male_count = sum(1 for u in active_users if u.gender == Gender.MALE)
-    female_count = sum(1 for u in active_users if u.gender == Gender.FEMALE)
+    # Aggregate gender counts at the database level
+    stats = (
+        db.query(User.gender, func.count(User.id))
+        .filter(User.is_active == True)
+        .group_by(User.gender)
+        .all()
+    )
+
+    counts = {gender: count for gender, count in stats}
+    male_count = counts.get(Gender.MALE, 0)
+    female_count = counts.get(Gender.FEMALE, 0)
     total_active = male_count + female_count
 
     male_ratio = round((male_count / total_active * 100)) if total_active > 0 else 0
