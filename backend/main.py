@@ -5,7 +5,6 @@ TwoDegrees FastAPI 애플리케이션 엔트리포인트
 
 from typing import Optional
 import os
-import urllib.parse
 import secrets
 import jwt
 from datetime import datetime, timedelta, timezone
