@@ -7,7 +7,7 @@ import secrets
 import uuid
 from enum import Enum as PyEnum
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
