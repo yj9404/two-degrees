@@ -384,13 +384,24 @@ def list_users(
 
     users = query.all()
 
-    # 전체 매칭 조회하여 파이썬 단에서 카운트 집계
-    from collections import Counter
-    all_matchings = db.query(Matching.user_a_id, Matching.user_b_id).all()
-    counts = Counter()
-    for a, b in all_matchings:
-        counts[a] += 1
-        counts[b] += 1
+    # 데이터베이스 레벨에서 카운트 집계
+    from sqlalchemy import func
+    user_ids = [u.id for u in users]
+    counts = {}
+
+    if user_ids:
+        # 유저 수가 많을 경우 IN 절을 사용하지 않고 전체 카운트를 집계
+        if len(user_ids) > 100:
+            res_a = db.query(Matching.user_a_id, func.count(Matching.id)).group_by(Matching.user_a_id).all()
+            res_b = db.query(Matching.user_b_id, func.count(Matching.id)).group_by(Matching.user_b_id).all()
+        else:
+            res_a = db.query(Matching.user_a_id, func.count(Matching.id)).filter(Matching.user_a_id.in_(user_ids)).group_by(Matching.user_a_id).all()
+            res_b = db.query(Matching.user_b_id, func.count(Matching.id)).filter(Matching.user_b_id.in_(user_ids)).group_by(Matching.user_b_id).all()
+
+        for uid, c in res_a:
+            counts[uid] = counts.get(uid, 0) + c
+        for uid, c in res_b:
+            counts[uid] = counts.get(uid, 0) + c
     
     for u in users:
         u.match_count = counts.get(u.id, 0)
