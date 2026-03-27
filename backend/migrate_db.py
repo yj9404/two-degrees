@@ -16,17 +16,19 @@ def migrate():
             cursor.execute("ALTER TABLE matchings ADD COLUMN user_a_token VARCHAR(100)")
             # Fill existing rows with random tokens
             cursor.execute("SELECT id FROM matchings")
-            rows = cursor.fetchall()
-            for row in rows:
-                cursor.execute("UPDATE matchings SET user_a_token = ? WHERE id = ?", (str(uuid.uuid4()), row[0]))
+            ids = [row[0] for row in cursor.fetchall()]
+            if ids:
+                updates = [(str(uuid.uuid4()), id_) for id_ in ids]
+                cursor.executemany("UPDATE matchings SET user_a_token = ? WHERE id = ?", updates)
         
         if 'user_b_token' not in existing_cols:
             print("Adding user_b_token...")
             cursor.execute("ALTER TABLE matchings ADD COLUMN user_b_token VARCHAR(100)")
             cursor.execute("SELECT id FROM matchings")
-            rows = cursor.fetchall()
-            for row in rows:
-                cursor.execute("UPDATE matchings SET user_b_token = ? WHERE id = ?", (str(uuid.uuid4()), row[0]))
+            ids = [row[0] for row in cursor.fetchall()]
+            if ids:
+                updates = [(str(uuid.uuid4()), id_) for id_ in ids]
+                cursor.executemany("UPDATE matchings SET user_b_token = ? WHERE id = ?", updates)
 
         if 'expires_at' not in existing_cols:
             print("Adding expires_at...")
