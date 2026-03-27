@@ -6,6 +6,7 @@ TwoDegrees FastAPI 애플리케이션 엔트리포인트
 from typing import Optional
 import os
 import secrets
+import hashlib
 import jwt
 from datetime import datetime, timedelta, timezone
 
@@ -80,13 +81,13 @@ def verify_password(plain: str, hashed: str) -> bool:
 # 관리자 인증 의존성 (JWT)
 # ---------------------------------------------------------------------------
 
-FALLBACK_SECRET = os.environ.get("ADMIN_PASSWORD", "temp_static_secret_for_jwt")
-_raw_secret = os.environ.get("JWT_SECRET", FALLBACK_SECRET)
-# HS256 requires at least 32 bytes (256 bits) for security and to avoid warnings
-if len(_raw_secret) < 32:
-    JWT_SECRET = _raw_secret.ljust(32, "0")
-else:
-    JWT_SECRET = _raw_secret
+# .env에서 비밀번호나 시크릿을 가져옵니다.
+_admin_pass = os.environ.get("ADMIN_PASSWORD", "temp_static_secret_for_jwt")
+_raw_secret = os.environ.get("JWT_SECRET", _admin_pass)
+
+# HS256 알고리즘은 최소 32바이트(256비트)의 키를 권장합니다.
+# 입력된 시크릿이 짧을 경우 취약한 패딩 대신 SHA-256 해시를 사용하여 32바이트의 고정 키를 생성합니다.
+JWT_SECRET = hashlib.sha256(_raw_secret.encode("utf-8")).hexdigest()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_MINUTES = 60 * 24  # 1일
 
