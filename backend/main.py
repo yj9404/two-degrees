@@ -494,9 +494,14 @@ def delete_user(user_id: str, db: Session = Depends(get_db), _admin: str = Depen
 # Matching 응답 보조기
 # ---------------------------------------------------------------------------
 
-def _build_matching_response(matching: Matching, db: Session):
-    user_a = db.query(User).filter(User.id == matching.user_a_id).first()
-    user_b = db.query(User).filter(User.id == matching.user_b_id).first()
+def _build_matching_response(matching: Matching, db: Session, prefetched_users: Optional[dict] = None):
+    if prefetched_users is not None:
+        user_a = prefetched_users.get(matching.user_a_id)
+        user_b = prefetched_users.get(matching.user_b_id)
+    else:
+        user_a = db.query(User).filter(User.id == matching.user_a_id).first()
+        user_b = db.query(User).filter(User.id == matching.user_b_id).first()
+
     return {
         "id": matching.id,
         "user_a_id": matching.user_a_id,
@@ -592,7 +597,12 @@ def list_matchings(
             pass # Invalid status_filter ignores instead of failing
             
     matchings = query.order_by(Matching.created_at.desc()).all()
-    results = [_build_matching_response(m, db) for m in matchings]
+
+    user_ids = {m.user_a_id for m in matchings} | {m.user_b_id for m in matchings}
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    prefetched_users = {u.id: u for u in users}
+
+    results = [_build_matching_response(m, db, prefetched_users=prefetched_users) for m in matchings]
     return results
 
 

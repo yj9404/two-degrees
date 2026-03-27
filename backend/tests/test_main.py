@@ -190,10 +190,11 @@ def test_auth_wrong_password(client):
     assert "연락처 또는 비밀번호가 올바르지 않습니다" in response.json()["detail"]
 
 
-def test_create_matching_success(client):
+def test_create_matching_success(client, monkeypatch):
     """
     [Matching API] 주선자가 정상적으로 매칭(PENDING 상태)을 생성하는 케이스
     """
+    monkeypatch.setenv("ADMIN_PASSWORD", "testadmin")
     # 유저 A 생성
     payload_a = {
         "name": "유저A",
@@ -226,12 +227,17 @@ def test_create_matching_success(client):
     assert res_b.status_code == 201
     user_b_id = res_b.json()["id"]
 
+    # 관리자 로그인으로 토큰 획득
+    login_res = client.post("/api/admin/login", json={"password": "testadmin"})
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
     # 매칭 생성
     matching_payload = {
         "user_a_id": user_a_id,
         "user_b_id": user_b_id
     }
-    res_match = client.post("/api/matchings", json=matching_payload)
+    res_match = client.post("/api/matchings", json=matching_payload, headers=headers)
 
     assert res_match.status_code == 201
     data = res_match.json()
@@ -240,10 +246,11 @@ def test_create_matching_success(client):
     assert "id" in data
 
 
-def test_update_matching_invalid_user_id(client):
+def test_update_matching_invalid_user_id(client, monkeypatch):
     """
     [Matching API] 존재하지 않는 user_id로 매칭 상태를 업데이트(PUT) 시도 시 404 에러 반환 검증
     """
+    monkeypatch.setenv("ADMIN_PASSWORD", "testadmin")
     # 유저 A 생성
     payload_a = {
         "name": "유저A",
@@ -274,12 +281,17 @@ def test_update_matching_invalid_user_id(client):
     res_b = client.post("/api/users", json=payload_b)
     user_b_id = res_b.json()["id"]
 
+    # 관리자 로그인으로 토큰 획득
+    login_res = client.post("/api/admin/login", json={"password": "testadmin"})
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
     # 매칭 생성
     matching_payload = {
         "user_a_id": user_a_id,
         "user_b_id": user_b_id
     }
-    res_match = client.post("/api/matchings", json=matching_payload)
+    res_match = client.post("/api/matchings", json=matching_payload, headers=headers)
     matching_id = res_match.json()["id"]
 
     # 존재하지 않는 유저 ID로 상태 변경 시도
@@ -288,7 +300,7 @@ def test_update_matching_invalid_user_id(client):
         "user_id": invalid_user_id,
         "status": "ACCEPTED"
     }
-    res_update = client.put(f"/api/matchings/{matching_id}/status", json=update_payload)
+    res_update = client.put(f"/api/matchings/{matching_id}/status", json=update_payload, headers=headers)
 
     assert res_update.status_code == 404
     assert "이 매칭에 속하지 않은 유저입니다" in res_update.json()["detail"]
