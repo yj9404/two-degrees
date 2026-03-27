@@ -1,4 +1,5 @@
 import os
+import secrets
 import uuid
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, inspect
@@ -31,7 +32,7 @@ def migrate():
                 for row in rows:
                     conn.execute(
                         text("UPDATE matchings SET user_a_token = :token WHERE id = :id"),
-                        {"token": str(uuid.uuid4()), "id": row[0]}
+                        {"token": secrets.token_urlsafe(32), "id": row[0]}
                     )
             
             if "user_b_token" not in columns:
@@ -41,7 +42,7 @@ def migrate():
                 for row in rows:
                     conn.execute(
                         text("UPDATE matchings SET user_b_token = :token WHERE id = :id"),
-                        {"token": str(uuid.uuid4()), "id": row[0]}
+                        {"token": secrets.token_urlsafe(32), "id": row[0]}
                     )
 
             if "expires_at" not in columns:

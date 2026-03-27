@@ -3,6 +3,7 @@ models.py
 TwoDegrees 소개팅 풀 등록을 위한 SQLAlchemy ORM 모델
 """
 
+import secrets
 import uuid
 from enum import Enum as PyEnum
 
@@ -145,8 +146,8 @@ class Matching(Base):
     user_a_status = Column(Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING)
     user_b_status = Column(Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING)
     
-    user_a_token = Column(String(100), unique=True, default=lambda: str(uuid.uuid4()), nullable=True)
-    user_b_token = Column(String(100), unique=True, default=lambda: str(uuid.uuid4()), nullable=True)
+    user_a_token = Column(String(100), unique=True, default=lambda: secrets.token_urlsafe(32), nullable=True)
+    user_b_token = Column(String(100), unique=True, default=lambda: secrets.token_urlsafe(32), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
     
     ai_score = Column(Integer, nullable=True)
