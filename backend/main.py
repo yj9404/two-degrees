@@ -211,7 +211,7 @@ def authenticate_user(payload: AuthRequest, db: Session = Depends(get_db)):
     summary="활성화된 유저 남/녀 통계",
     tags=["users"],
 )
-def get_user_stats(db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
+def get_user_stats(db: Session = Depends(get_db)):
     """
     현재 매칭풀에 활성화(is_active=True)된 유저들의 남녀 활동 비율 및 전체 통계를 반환합니다.
     """
