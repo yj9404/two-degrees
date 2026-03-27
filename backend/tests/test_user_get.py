@@ -66,6 +66,7 @@ def test_get_user_success_no_matches(client, db_session):
         birth_year=1990,
         job="개발자",
         contact="010-1234-5678",
+        normalized_contact="01012345678",
         password_hash="fakehash",
         referrer_name="김철수",
         desired_conditions="성격이 밝고 유머 감각이 있는 분 (10자 이상)",
@@ -94,19 +95,19 @@ def test_get_user_success_with_matches(client, db_session):
     # 유저 A 생성
     user_a = User(
         name="유저A", gender=Gender.MALE, birth_year=1990, job="개발자",
-        contact="010-1111-1111", password_hash="fake", referrer_name="김",
+        contact="010-1111-1111", normalized_contact="01011111111", password_hash="fake", referrer_name="김",
         desired_conditions="조건1조건2조건3조건4", deal_breakers="기피1기피2기피3기피4"
     )
     # 유저 B 생성
     user_b = User(
         name="유저B", gender=Gender.FEMALE, birth_year=1992, job="디자이너",
-        contact="010-2222-2222", password_hash="fake", referrer_name="김",
+        contact="010-2222-2222", normalized_contact="01022222222", password_hash="fake", referrer_name="김",
         desired_conditions="조건1조건2조건3조건4", deal_breakers="기피1기피2기피3기피4"
     )
     # 유저 C 생성
     user_c = User(
         name="유저C", gender=Gender.FEMALE, birth_year=1991, job="교사",
-        contact="010-3333-3333", password_hash="fake", referrer_name="박",
+        contact="010-3333-3333", normalized_contact="01033333333", password_hash="fake", referrer_name="박",
         desired_conditions="조건1조건2조건3조건4", deal_breakers="기피1기피2기피3기피4"
     )
     db_session.add_all([user_a, user_b, user_c])

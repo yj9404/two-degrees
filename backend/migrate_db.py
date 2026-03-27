@@ -71,6 +71,22 @@ def migrate():
         if "users" in inspector.get_table_names():
             user_columns = [c["name"] for c in inspector.get_columns("users")]
 
+            if "normalized_contact" not in user_columns:
+                print("Adding normalized_contact to users...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN normalized_contact VARCHAR(100)"))
+                conn.execute(text("UPDATE users SET normalized_contact = REPLACE(contact, '-', '') WHERE normalized_contact IS NULL"))
+
+                # PostgreSQL vs SQLite for constraints/indexes
+                if DATABASE_URL.startswith("sqlite"):
+                    conn.execute(text("CREATE UNIQUE INDEX ix_users_normalized_contact ON users (normalized_contact)"))
+                else:
+                    conn.execute(text("ALTER TABLE users ADD CONSTRAINT uq_users_normalized_contact UNIQUE (normalized_contact)"))
+                    conn.execute(text("CREATE INDEX ix_users_normalized_contact ON users (normalized_contact)"))
+
+                # Then make NOT NULL if possible, SQLite doesn't easily allow ALTER COLUMN NOT NULL
+                if not DATABASE_URL.startswith("sqlite"):
+                    conn.execute(text("ALTER TABLE users ALTER COLUMN normalized_contact SET NOT NULL"))
+
             if "marriage_intent" not in user_columns:
                 print("Adding marriage_intent to users...")
                 conn.execute(text("ALTER TABLE users ADD COLUMN marriage_intent VARCHAR(50) DEFAULT 'UNKNOWN'"))
