@@ -15,7 +15,6 @@ import type {
     AIRecommendRequest,
     AIRecommendResult,
     SharedProfileRead,
-    MatchRespondRequest,
     DailyMatchingStatsResponse,
     Notice,
 } from "@/types/user";
