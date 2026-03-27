@@ -211,7 +211,7 @@ def authenticate_user(payload: AuthRequest, db: Session = Depends(get_db)):
     summary="활성화된 유저 남/녀 통계",
     tags=["users"],
 )
-def get_user_stats(db: Session = Depends(get_db)):
+def get_user_stats(db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
     """
     현재 매칭풀에 활성화(is_active=True)된 유저들의 남녀 활동 비율 및 전체 통계를 반환합니다.
     """
@@ -255,7 +255,7 @@ def get_user_stats(db: Session = Depends(get_db)):
     summary="단일 유저 조회",
     tags=["users"],
 )
-def get_user(user_id: str, db: Session = Depends(get_db)):
+def get_user(user_id: str, db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
     """
     user_id(UUID)로 유저를 조회합니다.
     프로필 수정 페이지의 데이터 pre-fill에 사용됩니다.
@@ -285,6 +285,7 @@ def update_user(
     user_id: str,
     payload: UserUpdate,
     db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
 ):
     """
     유저 정보를 부분 수정합니다.
@@ -469,7 +470,7 @@ def admin_login(payload: AdminAuthRequest):
     summary="유저 삭제",
     tags=["users"],
 )
-def delete_user(user_id: str, db: Session = Depends(get_db)):
+def delete_user(user_id: str, db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
     """
     user_id(UUID)에 해당하는 유저를 영구 삭제합니다.
     """
