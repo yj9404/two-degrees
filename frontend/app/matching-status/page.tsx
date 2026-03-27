@@ -16,8 +16,7 @@ export default function MatchingStatusPage() {
                 setStats(res.stats);
                 setLoading(false);
             })
-            .catch((err) => {
-                console.error(err);
+            .catch(() => {
                 setLoading(false);
             });
     }, []);
