@@ -122,8 +122,9 @@ export default function SharedProfilePage() {
         try {
             await respondSharedMatching(token, { status });
             setResponded(status);
-        } catch (err: any) {
-            alert(err.message || "응답 처리 중 오류가 발생했습니다.");
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : "응답 처리 중 오류가 발생했습니다.";
+            alert(errorMessage);
         }
     };
 
