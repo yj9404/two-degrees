@@ -54,10 +54,16 @@ app = FastAPI(
     version="1.0.4",
 )
 
-# 개발 편의를 위해 CORS 전체 허용 (운영 시 origins 제한 필요)
+# 운영 환경에서는 ALLOWED_ORIGINS 환경변수를 통해 허용할 출처를 명시적으로 설정합니다.
+allowed_origins_str = os.environ.get(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000, http://localhost:3001, http://localhost:8000"
+)
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
