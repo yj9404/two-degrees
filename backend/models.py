@@ -91,6 +91,7 @@ class User(Base):
     birth_year = Column(Integer, nullable=False)          # 나이 계산용 (예: 1995)
     job = Column(String(100), nullable=False)
     contact = Column(String(100), nullable=False, unique=True)  # 로그인 식별자, 중복 방지
+    normalized_contact = Column(String(100), nullable=False, unique=True, index=True)  # 하이픈 제거된 연락처 (빠른 검색용)
     password_hash = Column(String(200), nullable=False)   # bcrypt 해시 비밀번호
     referrer_name = Column(String(50), nullable=False)    # 초대한 지인 이름 (신원 보증)
     desired_conditions = Column(Text, nullable=False)     # 원하는 상대방 조건

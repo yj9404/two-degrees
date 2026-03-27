@@ -147,7 +147,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     # 연락처 중복 검사 (하이픈 무시)
     normalized_contact = payload.contact.replace("-", "")
     existing = db.query(User).filter(
-        func.replace(User.contact, "-", "") == normalized_contact
+        User.normalized_contact == normalized_contact
     ).first()
     if existing:
         raise HTTPException(
@@ -158,6 +158,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     # 평문 비밀번호 → bcrypt 해시 변환 후 저장
     data = payload.model_dump(exclude={"password"})
     data["password_hash"] = hash_password(payload.password)
+    data["normalized_contact"] = normalized_contact
     data["is_active"] = True
 
     new_user = User(**data)
@@ -187,7 +188,7 @@ def authenticate_user(payload: AuthRequest, db: Session = Depends(get_db)):
     """
     normalized_contact = payload.contact.replace("-", "")
     user = db.query(User).filter(
-        func.replace(User.contact, "-", "") == normalized_contact
+        User.normalized_contact == normalized_contact
     ).first()
 
     # 유저 미존재 또는 비밀번호 불일치 — 동일 에러 메시지로 정보 누출 방지
