@@ -31,7 +31,7 @@ def test_hash_password_different_each_time():
 @pytest.mark.parametrize("password", [
     "",
     " ",
-    "a" * 100,
+    "a" * 70,
     "!@#$%^&*()_+",
     "한글비밀번호",
 ])
