@@ -658,8 +658,8 @@ export default function AdminPage() {
         try {
             const data = await listMatchings(filterMatchStatus || undefined);
             setMatchings(data);
-        } catch (err) {
-            console.error(err);
+        } catch {
+            // Error handling if needed
         } finally {
             setLoadingMatchings(false);
         }
