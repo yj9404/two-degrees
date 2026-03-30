@@ -302,3 +302,19 @@ class NoticeRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+# ---------------------------------------------------------------------------
+# AiRecommendHistory 스키마
+# ---------------------------------------------------------------------------
+
+class AIRecommendHistoryRead(BaseModel):
+    """AI 추천 이력 조회 응답"""
+    id: str
+    target_user_id: str
+    candidate_results: dict  # { candidate_id: { "score": int, "reason": str } }
+    created_at: datetime
+    # 어드민 UI 표시용: target 유저 이름 (optional)
+    target_user_name: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+

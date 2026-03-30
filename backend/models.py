@@ -181,3 +181,26 @@ class Notice(Base):
     def __repr__(self) -> str:
         return f"<Notice id={self.id} title={self.title!r} is_popup={self.is_popup}>"
 
+
+# ---------------------------------------------------------------------------
+# AiRecommendHistory 모델
+# ---------------------------------------------------------------------------
+
+class AiRecommendHistory(Base):
+    """AI 매칭 추천 결과 캐싱 테이블 (target_user 기준 최신 5건 유지)"""
+    __tablename__ = "ai_recommend_histories"
+
+    id = Column(
+        UUID_TEXT,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        nullable=False,
+    )
+    target_user_id = Column(UUID_TEXT, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    # candidate_results: { candidate_id: { "score": int, "reason": str }, ... }
+    candidate_results = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<AiRecommendHistory id={self.id!r} target={self.target_user_id!r}>"
+

@@ -14,6 +14,7 @@ import type {
     MatchingResponse,
     AIRecommendRequest,
     AIRecommendResult,
+    AIRecommendHistoryRead,
     SharedProfileRead,
     DailyMatchingStatsResponse,
     Notice,
@@ -240,6 +241,18 @@ export async function getAIRecommendations(
         method: "POST",
         body: JSON.stringify(payload),
     });
+}
+
+/** GET /api/matchings/ai-recommend/history – AI 추천 이력 조회 (관리자) */
+export async function getAIRecommendHistory(params?: {
+    target_user_id?: string;
+    limit?: number;
+}): Promise<AIRecommendHistoryRead[]> {
+    const qs = new URLSearchParams();
+    if (params?.target_user_id) qs.set("target_user_id", params.target_user_id);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const query = qs.toString() ? `?${qs}` : "";
+    return apiFetch(`/api/matchings/ai-recommend/history${query}`, { method: "GET" });
 }
 
 /** GET /api/matchings/stats/daily – 날짜별 매칭 통계 */

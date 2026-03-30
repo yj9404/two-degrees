@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
-import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2 } from "lucide-react";
-import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, Notice } from "@/types/user";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, getAIRecommendHistory, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
+import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History } from "lucide-react";
+import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, Notice } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -703,7 +703,7 @@ function CompareUsersDialog({
                             프로필 비교 (기준 vs 추천 대상)
                         </DialogTitle>
                     </DialogHeader>
-                    
+
                     <div className="grid grid-cols-2 gap-6 py-2">
                         {/* User A Column */}
                         <div className="space-y-4 border-r pr-4">
@@ -834,7 +834,7 @@ export default function AdminPage() {
     const [toDeleteId, setToDeleteId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
 
-    const [activeTab, setActiveTab] = useState<"USERS" | "MATCHINGS" | "NOTICES">("USERS");
+    const [activeTab, setActiveTab] = useState<"USERS" | "MATCHINGS" | "NOTICES" | "AI_HISTORY">("USERS");
     const [matchings, setMatchings] = useState<MatchingResponse[]>([]);
     const [loadingMatchings, setLoadingMatchings] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -854,6 +854,11 @@ export default function AdminPage() {
     const [aiResults, setAiResults] = useState<AIRecommendResult[]>([]);
     const [aiTargetUserId, setAiTargetUserId] = useState<string | null>(null);
     const [compareCandidate, setCompareCandidate] = useState<UserReadAdmin | null>(null);
+
+    // AI 이력 관련 상태
+    const [aiHistory, setAiHistory] = useState<AIRecommendHistoryRead[]>([]);
+    const [loadingAiHistory, setLoadingAiHistory] = useState(false);
+    const [selectedHistory, setSelectedHistory] = useState<AIRecommendHistoryRead | null>(null);
 
     const [selectedMatching, setSelectedMatching] = useState<MatchingResponse | null>(null);
 
@@ -892,13 +897,26 @@ export default function AdminPage() {
         }
     }, []);
 
+    const fetchAiHistory = useCallback(async () => {
+        setLoadingAiHistory(true);
+        try {
+            const data = await getAIRecommendHistory({ limit: 5 });
+            setAiHistory(data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingAiHistory(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (authed) {
             fetchUsers();
             fetchMatchings();
             fetchNotices();
+            fetchAiHistory();
         }
-    }, [authed, fetchUsers, fetchMatchings, fetchNotices]);
+    }, [authed, fetchUsers, fetchMatchings, fetchNotices, fetchAiHistory]);
 
     // ── 공지사항 관련 함수 ─────────────────────
     const handleCreateNotice = async (e: React.FormEvent) => {
@@ -1221,21 +1239,27 @@ export default function AdminPage() {
                 </div>
 
                 {/* 탭 네비게이션 */}
-                <div className="flex gap-4 border-b border-slate-200 pb-2">
+                <div className="flex gap-4 border-b border-slate-200 pb-2 overflow-x-auto">
                     <button
-                        className={`font-semibold pb-2 border-b-2 transition-colors ${activeTab === "USERS" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+                        className={`font-semibold pb-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "USERS" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
                         onClick={() => setActiveTab("USERS")}
                     >
                         가입자 목록
                     </button>
                     <button
-                        className={`font-semibold pb-2 border-b-2 transition-colors ${activeTab === "MATCHINGS" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+                        className={`font-semibold pb-2 border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === "AI_HISTORY" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+                        onClick={() => { setActiveTab("AI_HISTORY"); fetchAiHistory(); }}
+                    >
+                        최근 AI 매칭
+                    </button>
+                    <button
+                        className={`font-semibold pb-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "MATCHINGS" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
                         onClick={() => setActiveTab("MATCHINGS")}
                     >
                         매칭 관리 ({matchings.length})
                     </button>
                     <button
-                        className={`font-semibold pb-2 border-b-2 transition-colors ${activeTab === "NOTICES" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+                        className={`font-semibold pb-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "NOTICES" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
                         onClick={() => setActiveTab("NOTICES")}
                     >
                         공지사항 ({notices.length})
@@ -1640,7 +1664,128 @@ export default function AdminPage() {
                         </div>
                     </div>
                 )}
+
+                {/* --- AI 추천 이력 탭 --- */}
+                {activeTab === "AI_HISTORY" && (
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <p className="text-slate-500 text-sm">최근 AI 추천 매칭 이력 (최대 5건)</p>
+                            <Button size="sm" variant="outline" onClick={fetchAiHistory} disabled={loadingAiHistory}>
+                                {loadingAiHistory ? "로딩 중..." : "새로고침"}
+                            </Button>
+                        </div>
+
+                        {loadingAiHistory ? (
+                            <p className="text-center text-slate-400 py-16">이력을 불러오는 중...</p>
+                        ) : aiHistory.length === 0 ? (
+                            <div className="text-center text-slate-400 py-16 bg-white rounded-xl border border-slate-100">
+                                <History className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+                                <p className="text-sm">AI 추천 이력이 없습니다.</p>
+                                <p className="text-xs mt-1 text-slate-300">가입자 탭에서 AI 추천을 먼저 실행해 주세요.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {aiHistory.map((hist) => {
+                                    const candidateCount = Object.keys(hist.candidate_results).length;
+                                    const topScore = candidateCount > 0
+                                        ? Math.max(...Object.values(hist.candidate_results).map(r => r.score))
+                                        : 0;
+                                    return (
+                                        <Card
+                                            key={hist.id}
+                                            className="shadow-sm border-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer group"
+                                            onClick={() => setSelectedHistory(hist)}
+                                        >
+                                            <CardContent className="p-4 flex items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
+                                                        <Sparkles className="w-4 h-4 text-indigo-500" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">
+                                                            {hist.target_user_name ?? hist.target_user_id.slice(0, 8) + "…"} 기준 추천
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                                            후보 {candidateCount}명 분석 · 최고점 {topScore}점 · {new Date(hist.created_at).toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <div className="bg-indigo-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+                                                        {topScore}점
+                                                    </div>
+                                                    <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 transition-colors" />
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
+
+            {/* AI 추천 이력 상세 다이얼로그 */}
+            {selectedHistory && (
+                <Dialog open={!!selectedHistory} onOpenChange={(open) => !open && setSelectedHistory(null)}>
+                    <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto" aria-describedby={undefined}>
+                        <DialogHeader>
+                            <DialogTitle className="text-slate-900 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-indigo-500" />
+                                {selectedHistory.target_user_name ?? "알 수 없음"} 기준 AI 추천 이력
+                            </DialogTitle>
+                        </DialogHeader>
+                        <p className="text-[11px] text-slate-400 -mt-1">{new Date(selectedHistory.created_at).toLocaleString()}</p>
+
+                        <div className="space-y-3 pt-2">
+                            {Object.entries(selectedHistory.candidate_results).length === 0 ? (
+                                <p className="text-center text-slate-400 py-8">저장된 후보 데이터가 없습니다.</p>
+                            ) : (
+                                Object.entries(selectedHistory.candidate_results)
+                                    .sort(([, a], [, b]) => b.score - a.score)
+                                    .map(([candidateId, data]) => {
+                                        const candidateUser = users.find(u => u.id === candidateId);
+                                        return (
+                                            <div key={candidateId} className="bg-slate-50 rounded-lg border border-slate-100 p-3 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <div
+                                                        className={candidateUser ? "cursor-pointer group/cand" : ""}
+                                                        onClick={() => {
+                                                            if (!candidateUser) return;
+                                                            setAiTargetUserId(selectedHistory.target_user_id);
+                                                            setCompareCandidate(candidateUser);
+                                                        }}
+                                                    >
+                                                        <p className={`text-sm font-bold text-slate-900 ${candidateUser ? "group-hover/cand:text-indigo-600 underline decoration-dotted underline-offset-2 transition-colors" : ""}`}>
+                                                            {candidateUser ? `${candidateUser.name} (${candidateUser.birth_year}년생)` : candidateId.slice(0, 8) + "…"}
+                                                        </p>
+                                                        {candidateUser && (
+                                                            <p className="text-[10px] text-slate-400">{candidateUser.job} · <span className="text-indigo-400">클릭하여 비교</span></p>
+                                                        )}
+                                                    </div>
+                                                    <div className="bg-indigo-600 text-white text-sm font-bold px-2.5 py-1 rounded-full shrink-0">
+                                                        {data.score}점
+                                                    </div>
+                                                </div>
+                                                <div className="bg-white rounded p-2.5 border border-slate-100">
+                                                    <p className="text-[10px] font-semibold text-indigo-500 mb-1 flex items-center gap-1">
+                                                        <Sparkles className="w-3 h-3" /> AI 추천 사유
+                                                    </p>
+                                                    <p className="text-xs text-slate-700 leading-relaxed">{data.reason}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                            )}
+                        </div>
+
+                        <DialogFooter className="pt-2">
+                            <Button variant="outline" className="w-full" onClick={() => setSelectedHistory(null)}>닫기</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
 
             {/* 상세 다이얼로그 */}
             <UserDetailDialog
@@ -1715,7 +1860,7 @@ export default function AdminPage() {
 
                                     return (
                                         <Card key={result.candidate_id} className="border-indigo-100 overflow-hidden shadow-sm">
-                                            <div 
+                                            <div
                                                 className="bg-gradient-to-r from-indigo-50 to-white px-4 py-3 border-b border-indigo-100 flex items-center justify-between cursor-pointer hover:bg-indigo-50/50 transition-colors"
                                                 onClick={() => setCompareCandidate(candidate)}
                                             >

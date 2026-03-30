@@ -197,3 +197,13 @@ export interface DailyMatchingStats {
 export interface DailyMatchingStatsResponse {
     stats: DailyMatchingStats[];
 }
+
+/** AI 추천 이력 단건 */
+export interface AIRecommendHistoryRead {
+    id: string;
+    target_user_id: string;
+    /** { candidate_id: { score: number; reason: string } } */
+    candidate_results: Record<string, { score: number; reason: string }>;
+    created_at: string;
+    target_user_name?: string;
+}

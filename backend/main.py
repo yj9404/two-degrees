@@ -19,10 +19,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 
 from database import Base, engine, get_db
-from models import Gender, User, Matching, MatchStatus, Notice
+from models import Gender, User, Matching, MatchStatus, Notice, AiRecommendHistory
 from schemas import (
     AdminAuthRequest,
     AIRecommendRequest,
+    AIRecommendHistoryRead,
     AIRecommendResult,
     AuthRequest,
     AuthResponse,
@@ -727,7 +728,7 @@ def delete_matching(
 
 
 # ---------------------------------------------------------------------------
-# POST /api/matchings/ai-recommend – AI 기반 매칭 추천 (Stateless)
+# POST /api/matchings/ai-recommend – AI 기반 매칭 추천 (DB 캐싱)
 # ---------------------------------------------------------------------------
 
 @app.post(
@@ -742,9 +743,10 @@ def ai_recommend_matchings(
     _admin: str = Depends(verify_admin),
 ):
     """
-    타겟 유저와 후보 유저들의 정보(민감정보 제외)를 비교하여 
-    Gemini AI가 평가한 적합도 점수와 추천 사유를 반환합니다. 
-    **기존 매칭 이력이 있는 유저는 자동으로 제외됩니다.**
+    타겟 유저와 후보 유저들의 정보(민감정보 제외)를 비교하여 Gemini AI가 평가한
+    적합도 점수와 추천 사유를 반환합니다.
+    - **캐싱**: 최근 5건 이력에서 이미 분석된 후보는 DB 값을 재사용합니다.
+    - **기존 매칭 이력이 있는 유저는 자동으로 제외됩니다.**
     """
     # 1. 타겟 유저 조회
     target_user = db.query(User).filter(User.id == payload.target_user_id).first()
@@ -753,62 +755,162 @@ def ai_recommend_matchings(
 
     # 2. 기 매칭 이력이 있는 후보 제외
     existing_matches = db.query(Matching).filter(
-        (Matching.user_a_id == payload.target_user_id) | 
+        (Matching.user_a_id == payload.target_user_id) |
         (Matching.user_b_id == payload.target_user_id)
     ).all()
-    
     matched_user_ids = {m.user_a_id for m in existing_matches} | {m.user_b_id for m in existing_matches}
-    matched_user_ids.add(payload.target_user_id) # 자기 자신도 제외
+    matched_user_ids.add(payload.target_user_id)  # 자기 자신도 제외
 
     valid_candidate_ids = [c_id for c_id in payload.candidate_user_ids if c_id not in matched_user_ids]
-    
     if not valid_candidate_ids:
         return []
 
-    # 3. 유효한 후보 유저들 조회
+    # 3. 유효한 후보 유저들 조회 + 추천인 동일 제외
     candidates = db.query(User).filter(User.id.in_(valid_candidate_ids)).all()
-    
-    # 타겟 유저와 추천인이 같은 경우 매칭 후보에서 제외
     if getattr(target_user, "referrer_name", None):
         candidates = [c for c in candidates if getattr(c, "referrer_name", None) != target_user.referrer_name]
-
     if not candidates:
         return []
 
-    # 4. 프롬프트용 데이터 필터링 (JSON으로 직렬화할 수 있도록 Pydantic 모델을 활용)
-    from schemas import UserRead
-    
-    # UserRead는 이름, 연락처(X), 비밀번호(X)를 다루며, 
-    # 이름과 지인이름도 추가로 프롬프트에서 가려주기 위해 exclude 처리합니다.
-    exclude_fields = {"name", "referrer_name", "photo_urls"}
-    target_dict = UserRead.model_validate(target_user).model_dump(mode='json', exclude=exclude_fields)
+    candidate_id_set = {c.id for c in candidates}  # M: 이번 요청 유효 후보 집합
 
-    candidates_dict_list = [
-        UserRead.model_validate(c).model_dump(mode='json', exclude=exclude_fields)
-        for c in candidates
-    ]
+    # 4. 캐시 조회 – 최근 5건 이력에서 이미 분석된 후보(N) 추출
+    recent_histories = (
+        db.query(AiRecommendHistory)
+        .filter(AiRecommendHistory.target_user_id == payload.target_user_id)
+        .order_by(AiRecommendHistory.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    cached_results: dict[str, dict] = {}  # { candidate_id: {"score": int, "reason": str} }
+    for hist in recent_histories:
+        if isinstance(hist.candidate_results, dict):
+            for cid, data in hist.candidate_results.items():
+                if cid not in cached_results:
+                    cached_results[cid] = data
 
-    # 5. Gemini API 연동 모듈 호출
-    from utils.gemini import get_ai_recommendations
-    try:
-        recommendations = get_ai_recommendations(target_dict, candidates_dict_list)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러가 발생했습니다: {str(e)}")
+    # 5. M ∩ N (캐시 히트) vs M - N (신규 호출 필요)
+    cached_candidate_ids = candidate_id_set & set(cached_results.keys())
+    new_candidate_ids = candidate_id_set - cached_candidate_ids
 
-    # 6. 결과 검증 및 정렬
-    valid_results = []
-    for rec in recommendations:
+    new_api_results: dict[str, dict] = {}  # 신규 Gemini 호출 결과
+
+    if new_candidate_ids:
+        # 6. 신규 후보에 대해서만 Gemini API 호출
+        from schemas import UserRead
+        exclude_fields = {"name", "referrer_name", "photo_urls"}
+        target_dict = UserRead.model_validate(target_user).model_dump(mode='json', exclude=exclude_fields)
+
+        new_candidates = [c for c in candidates if c.id in new_candidate_ids]
+        candidates_dict_list = [
+            UserRead.model_validate(c).model_dump(mode='json', exclude=exclude_fields)
+            for c in new_candidates
+        ]
+
+        from utils.gemini import get_ai_recommendations
         try:
-            # 반환된 딕셔너리가 AIRecommendResult 규칙(candidate_id, score, reason)을 만족하는지 파싱
-            parsed = AIRecommendResult(**rec)
-            valid_results.append(parsed)
+            raw_recs = get_ai_recommendations(target_dict, candidates_dict_list)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러가 발생했습니다: {str(e)}")
+
+        for rec in raw_recs:
+            try:
+                parsed = AIRecommendResult(**rec)
+                new_api_results[parsed.candidate_id] = {"score": parsed.score, "reason": parsed.reason}
+            except Exception:
+                pass
+
+        # 7. 병합된 최종 결과를 DB에 UPSERT (최신 레코드 덮어쓰기)
+        # 기존 캐시에 신규 결과를 병합 (new_api_results가 우선)
+        merged_results = {**cached_results, **new_api_results}
+        # 이번 요청 후보 범위 전체를 포함 (기존 캐시 + 신규)
+        merged_for_db = {cid: merged_results[cid] for cid in merged_results}
+
+        # 가장 최신 레코드가 있으면 UPDATE, 없으면 INSERT
+        latest_hist = (
+            db.query(AiRecommendHistory)
+            .filter(AiRecommendHistory.target_user_id == payload.target_user_id)
+            .order_by(AiRecommendHistory.created_at.desc())
+            .first()
+        )
+        if latest_hist:
+            # SQLAlchemy JSON 컬럼은 직접 교체해야 변경 감지됨
+            from datetime import timezone
+            latest_hist.candidate_results = merged_for_db
+            latest_hist.created_at = datetime.now(timezone.utc)
+            db.add(latest_hist)
+        else:
+            new_hist = AiRecommendHistory(
+                target_user_id=payload.target_user_id,
+                candidate_results=merged_for_db,
+            )
+            db.add(new_hist)
+        db.commit()
+
+    # 9. 최종 응답 구성 (캐시 + 신규 결과 병합)
+    all_results: list[AIRecommendResult] = []
+    for candidate in candidates:
+        cid = candidate.id
+        if cid in new_api_results:
+            data = new_api_results[cid]
+        elif cid in cached_results:
+            data = cached_results[cid]
+        else:
+            continue
+        try:
+            all_results.append(AIRecommendResult(
+                candidate_id=cid,
+                score=data["score"],
+                reason=data["reason"],
+            ))
         except Exception:
-            # 규칙에 맞지 않으면 무시
             pass
 
-    # 점수 내림차순 정렬
-    valid_results.sort(key=lambda x: x.score, reverse=True)
-    return valid_results
+    all_results.sort(key=lambda x: x.score, reverse=True)
+    return all_results
+
+
+# ---------------------------------------------------------------------------
+# GET /api/matchings/ai-recommend/history – AI 추천 이력 조회 (관리자)
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/matchings/ai-recommend/history",
+    response_model=list[AIRecommendHistoryRead],
+    summary="AI 추천 이력 조회 (관리자)",
+    tags=["matchings"],
+)
+def get_ai_recommend_history(
+    target_user_id: Optional[str] = Query(None, description="특정 유저 ID로 필터 (없으면 전체)"),
+    limit: int = Query(5, ge=1, le=50, description="반환할 최대 이력 수"),
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """
+    전체 또는 특정 target_user_id의 AI 추천 이력을 최신순으로 반환합니다.
+    """
+    query = db.query(AiRecommendHistory)
+    if target_user_id:
+        query = query.filter(AiRecommendHistory.target_user_id == target_user_id)
+    histories = query.order_by(AiRecommendHistory.created_at.desc()).limit(limit).all()
+
+    # target_user 이름을 한 번에 조회하여 응답에 포함
+    user_ids = list({h.target_user_id for h in histories})
+    users_map: dict[str, str] = {}
+    if user_ids:
+        users = db.query(User).filter(User.id.in_(user_ids)).all()
+        users_map = {u.id: u.name for u in users}
+
+    result = []
+    for h in histories:
+        result.append(AIRecommendHistoryRead(
+            id=h.id,
+            target_user_id=h.target_user_id,
+            candidate_results=h.candidate_results or {},
+            created_at=h.created_at,
+            target_user_name=users_map.get(h.target_user_id),
+        ))
+    return result
 
 
 # ---------------------------------------------------------------------------
