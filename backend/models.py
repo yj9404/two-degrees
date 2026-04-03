@@ -187,7 +187,7 @@ class Notice(Base):
 # ---------------------------------------------------------------------------
 
 class AiRecommendHistory(Base):
-    """AI 매칭 추천 결과 캐싱 테이블 (target_user 기준 최신 5건 유지)"""
+    """AI 매칭 추천 결과 캐싱 테이블 (target_user 기준 최신 10건 유지)"""
     __tablename__ = "ai_recommend_histories"
 
     id = Column(

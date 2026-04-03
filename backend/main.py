@@ -761,7 +761,19 @@ def ai_recommend_matchings(
     matched_user_ids = {m.user_a_id for m in existing_matches} | {m.user_b_id for m in existing_matches}
     matched_user_ids.add(payload.target_user_id)  # 자기 자신도 제외
 
-    valid_candidate_ids = [c_id for c_id in payload.candidate_user_ids if c_id not in matched_user_ids]
+    # 2-1. 현재 다른 매칭이 진행 중인(매칭 종료가 아닌 모든 상태) 후보 제외
+    # 진행 중 = (A_status != REJECTED) AND (B_status != REJECTED) AND (is_contact_shared == False)
+    busy_matches = db.query(Matching).filter(
+        (Matching.user_a_status != MatchStatus.REJECTED) &
+        (Matching.user_b_status != MatchStatus.REJECTED) &
+        (Matching.is_contact_shared == False)
+    ).all()
+    busy_user_ids = {m.user_a_id for m in busy_matches} | {m.user_b_id for m in busy_matches}
+
+    valid_candidate_ids = [
+        c_id for c_id in payload.candidate_user_ids 
+        if c_id not in matched_user_ids and c_id not in busy_user_ids
+    ]
     if not valid_candidate_ids:
         return []
 
@@ -779,7 +791,7 @@ def ai_recommend_matchings(
         db.query(AiRecommendHistory)
         .filter(AiRecommendHistory.target_user_id == payload.target_user_id)
         .order_by(AiRecommendHistory.created_at.desc())
-        .limit(5)
+        .limit(10)
         .all()
     )
     cached_results: dict[str, dict] = {}  # { candidate_id: {"score": int, "reason": str} }
@@ -807,9 +819,9 @@ def ai_recommend_matchings(
             for c in new_candidates
         ]
 
-        from utils.gemini import get_ai_recommendations
+        from utils.claude import get_claude_recommendations
         try:
-            raw_recs = get_ai_recommendations(target_dict, candidates_dict_list)
+            raw_recs = get_claude_recommendations(target_dict, candidates_dict_list)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러가 발생했습니다: {str(e)}")
 
@@ -882,7 +894,7 @@ def ai_recommend_matchings(
 )
 def get_ai_recommend_history(
     target_user_id: Optional[str] = Query(None, description="특정 유저 ID로 필터 (없으면 전체)"),
-    limit: int = Query(5, ge=1, le=50, description="반환할 최대 이력 수"),
+    limit: int = Query(10, ge=1, le=50, description="반환할 최대 이력 수"),
     db: Session = Depends(get_db),
     _admin: str = Depends(verify_admin),
 ):
