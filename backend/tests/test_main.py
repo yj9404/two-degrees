@@ -23,14 +23,12 @@ engine = create_engine(
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def override_get_db():
+    Base.metadata.create_all(bind=engine)
     try:
         db = TestingSessionLocal()
         yield db
     finally:
         db.close()
-
-app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[verify_admin] = lambda: "admin"
 
 
 @pytest.fixture(scope="function")
@@ -53,8 +51,11 @@ def client(db_session):
     """
     TestClient를 반환하는 fixture.
     """
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[verify_admin] = lambda: "admin"
     with TestClient(app) as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 def test_cors_origins(client):
