@@ -909,7 +909,7 @@ export default function AdminPage() {
     const fetchAiHistory = useCallback(async () => {
         setLoadingAiHistory(true);
         try {
-            const data = await getAIRecommendHistory({ limit: 5 });
+            const data = await getAIRecommendHistory();
             setAiHistory(data);
         } catch (err) {
             console.error(err);
@@ -1743,7 +1743,7 @@ export default function AdminPage() {
                 {activeTab === "AI_HISTORY" && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <p className="text-slate-500 text-sm">최근 AI 추천 매칭 이력 (최대 5건)</p>
+                            <p className="text-slate-500 text-sm">AI 추천 매칭 이력 (전체)</p>
                             <Button size="sm" variant="outline" onClick={fetchAiHistory} disabled={loadingAiHistory}>
                                 {loadingAiHistory ? "로딩 중..." : "새로고침"}
                             </Button>

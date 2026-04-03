@@ -266,7 +266,7 @@ def get_user_stats(db: Session = Depends(get_db)):
     summary="단일 유저 조회",
     tags=["users"],
 )
-def get_user(user_id: str, db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
+def get_user(user_id: str, db: Session = Depends(get_db)):
     """
     user_id(UUID)로 유저를 조회합니다.
     프로필 수정 페이지의 데이터 pre-fill에 사용됩니다.
@@ -296,7 +296,6 @@ def update_user(
     user_id: str,
     payload: UserUpdate,
     db: Session = Depends(get_db),
-    _admin: str = Depends(verify_admin),
 ):
     """
     유저 정보를 부분 수정합니다.
@@ -326,6 +325,27 @@ def update_user(
 
     db.commit()
     db.refresh(user)
+
+    # 프로필 수정 시 AI 매칭 이력 정리
+    # 1. 기준(target)이었던 이력 전체 삭제
+    db.query(AiRecommendHistory).filter(
+        AiRecommendHistory.target_user_id == user_id
+    ).delete(synchronize_session=False)
+
+    # 2. 후보(candidate)였던 이력에서 해당 유저만 제거
+    from sqlalchemy.orm.attributes import flag_modified
+    candidate_histories = db.query(AiRecommendHistory).all()
+    for hist in candidate_histories:
+        results = hist.candidate_results or {}
+        if user_id in results:
+            updated = {k: v for k, v in results.items() if k != user_id}
+            if not updated:
+                db.delete(hist)
+            else:
+                hist.candidate_results = updated
+                flag_modified(hist, "candidate_results")
+
+    db.commit()
 
     from sqlalchemy import or_
     user.match_count = db.query(Matching).filter(or_(Matching.user_a_id == user_id, Matching.user_b_id == user_id)).count()
@@ -1112,7 +1132,6 @@ def ai_batch_recommend_matchings(
 )
 def get_ai_recommend_history(
     target_user_id: Optional[str] = Query(None, description="특정 유저 ID로 필터 (없으면 전체)"),
-    limit: int = Query(10, ge=1, le=50, description="반환할 최대 이력 수"),
     db: Session = Depends(get_db),
     _admin: str = Depends(verify_admin),
 ):
@@ -1122,7 +1141,7 @@ def get_ai_recommend_history(
     query = db.query(AiRecommendHistory)
     if target_user_id:
         query = query.filter(AiRecommendHistory.target_user_id == target_user_id)
-    histories = query.order_by(AiRecommendHistory.created_at.desc()).limit(limit).all()
+    histories = query.order_by(AiRecommendHistory.created_at.desc()).all()
 
     # target_user 이름을 한 번에 조회하여 응답에 포함
     user_ids = list({h.target_user_id for h in histories})
