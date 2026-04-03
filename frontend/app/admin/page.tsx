@@ -636,10 +636,14 @@ function CompareUsersDialog({
     baseUser,
     targetUser,
     onClose,
+    onCreateMatch,
+    creatingMatch,
 }: {
     baseUser: UserReadAdmin | null;
     targetUser: UserReadAdmin | null;
     onClose: () => void;
+    onCreateMatch?: () => void;
+    creatingMatch?: boolean;
 }) {
     const [zoomedPhotoUrl, setZoomedPhotoUrl] = useState<string | null>(null);
 
@@ -854,6 +858,7 @@ export default function AdminPage() {
     const [aiResults, setAiResults] = useState<AIRecommendResult[]>([]);
     const [aiTargetUserId, setAiTargetUserId] = useState<string | null>(null);
     const [compareCandidate, setCompareCandidate] = useState<UserReadAdmin | null>(null);
+    const [compareBaseUser, setCompareBaseUser] = useState<UserReadAdmin | null>(null);
 
     // AI 이력 관련 상태
     const [aiHistory, setAiHistory] = useState<AIRecommendHistoryRead[]>([]);
@@ -1114,6 +1119,44 @@ export default function AdminPage() {
             setShowAiModal(false);
         } finally {
             setAiLoading(false);
+        }
+    };
+
+    const handleCreateMatchFromCompare = async () => {
+        const baseId = compareBaseUser?.id ?? aiTargetUserId;
+        if (!baseId || !compareCandidate) return;
+        const historyData = selectedHistory?.candidate_results?.[compareCandidate.id];
+        setCreatingMatch(true);
+        try {
+            await createMatching({
+                user_a_id: baseId,
+                user_b_id: compareCandidate.id,
+                ...(historyData ? { ai_score: historyData.score, ai_reason: historyData.reason } : {}),
+            });
+            alert("매칭이 생성되었습니다.");
+            setCompareCandidate(null);
+            setCompareBaseUser(null);
+            setActiveTab("MATCHINGS");
+            fetchMatchings();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "매칭 생성 실패");
+        } finally {
+            setCreatingMatch(false);
+        }
+    };
+
+    const handleCreateMatchFromCompare_History = async (targetId: string, candidateId: string, score: number, reason: string) => {
+        setCreatingMatch(true);
+        try {
+            await createMatching({ user_a_id: targetId, user_b_id: candidateId, ai_score: score, ai_reason: reason });
+            alert("매칭이 생성되었습니다.");
+            setSelectedHistory(null);
+            setActiveTab("MATCHINGS");
+            fetchMatchings();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "매칭 생성 실패");
+        } finally {
+            setCreatingMatch(false);
         }
     };
 
@@ -1890,10 +1933,18 @@ export default function AdminPage() {
                                         <div className="bg-gradient-to-r from-purple-50 to-white px-4 py-3 border-b border-purple-100 flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-black">{item.rank}</div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-bold text-blue-700">{item.target_user.name}</span>
-                                                    <span className="text-slate-400">↔</span>
-                                                    <span className="text-sm font-bold text-pink-700">{item.candidate_user.name}</span>
+                                                <div 
+                                                    className="flex items-center gap-2 cursor-pointer group"
+                                                    onClick={() => {
+                                                        setAiTargetUserId(item.target_user.id);
+                                                        setCompareBaseUser(item.target_user as UserReadAdmin);
+                                                        const candObj = users.find(u => u.id === item.candidate_user.id) ?? item.candidate_user as UserReadAdmin;
+                                                        setCompareCandidate(candObj);
+                                                    }}
+                                                >
+                                                    <span className="text-sm font-bold text-blue-700 group-hover:underline decoration-dotted underline-offset-2 transition-all">{item.target_user.name}</span>
+                                                    <span className="text-slate-400 group-hover:text-purple-500 transition-colors">↔</span>
+                                                    <span className="text-sm font-bold text-pink-700 group-hover:underline decoration-dotted underline-offset-2 transition-all">{item.candidate_user.name}</span>
                                                 </div>
                                                 <div className="text-xs text-slate-400">
                                                     {item.target_user.birth_year % 100}년생 · {item.target_user.job}<span className="mx-1">/</span>{item.candidate_user.birth_year % 100}년생 · {item.candidate_user.job}
@@ -1968,8 +2019,25 @@ export default function AdminPage() {
                                                             <p className="text-[10px] text-slate-400">{candidateUser.job} · <span className="text-indigo-400">클릭하여 비교</span></p>
                                                         )}
                                                     </div>
-                                                    <div className="bg-indigo-600 text-white text-sm font-bold px-2.5 py-1 rounded-full shrink-0">
-                                                        {data.score}점
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        {candidateUser && (
+                                                            <Button
+                                                                size="sm"
+                                                                className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                                                                disabled={creatingMatch}
+                                                                onClick={() => handleCreateMatchFromCompare_History(
+                                                                    selectedHistory.target_user_id,
+                                                                    candidateUser.id,
+                                                                    data.score,
+                                                                    data.reason,
+                                                                )}
+                                                            >
+                                                                {creatingMatch ? "…" : "매칭하기"}
+                                                            </Button>
+                                                        )}
+                                                        <div className="bg-indigo-600 text-white text-sm font-bold px-2.5 py-1 rounded-full">
+                                                            {data.score}점
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className="bg-white rounded p-2.5 border border-slate-100">
@@ -1998,9 +2066,11 @@ export default function AdminPage() {
             />
 
             <CompareUsersDialog
-                baseUser={users.find(u => u.id === aiTargetUserId) || null}
+                baseUser={compareBaseUser ?? users.find(u => u.id === aiTargetUserId) ?? null}
                 targetUser={compareCandidate}
-                onClose={() => setCompareCandidate(null)}
+                onClose={() => { setCompareCandidate(null); setCompareBaseUser(null); }}
+                onCreateMatch={handleCreateMatchFromCompare}
+                creatingMatch={creatingMatch}
             />
 
             <MatchingDetailDialog
