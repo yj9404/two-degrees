@@ -207,3 +207,21 @@ export interface AIRecommendHistoryRead {
     created_at: string;
     target_user_name?: string;
 }
+
+/** N:M 배치 AI 추천 요청 페이로드 */
+export interface AIBatchRecommendRequest {
+    target_user_ids: string[];
+    candidate_user_ids: string[];
+    top_n?: number;
+}
+
+/** N:M 배치 AI 추천 결과 개별 항목 (1쌍) */
+export interface AIBatchRecommendResultItem {
+    rank: number;
+    target_user_id: string;
+    candidate_user_id: string;
+    score: number;
+    reason: string;
+    target_user: UserReadAdmin;
+    candidate_user: UserReadAdmin;
+}

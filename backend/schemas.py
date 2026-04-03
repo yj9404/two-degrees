@@ -318,3 +318,36 @@ class AIRecommendHistoryRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+# ---------------------------------------------------------------------------
+# N:M 배치 AI 추천 스키마
+# ---------------------------------------------------------------------------
+
+class AIBatchRecommendRequest(BaseModel):
+    """POST /api/matchings/ai-batch-recommend 요청 바디"""
+    target_user_ids: List[str] = Field(..., min_length=1, max_length=10, description="타겟 유저 ID 목록 (최대 10명)")
+    candidate_user_ids: List[str] = Field(..., min_length=1, description="후보 유저 ID 목록")
+    top_n: int = Field(3, ge=1, le=10, description="추천받을 최대 쌍 수")
+
+
+class AIBatchRecommendResultItem(BaseModel):
+    """배치 추천 결과 개별 항목 (1쌍)"""
+    rank: int
+    target_user_id: str
+    candidate_user_id: str
+    score: int = Field(..., ge=0, le=100)
+    reason: str
+    target_user: UserReadAdmin
+    candidate_user: UserReadAdmin
+
+
+class AIBatchRecommendHistoryRead(BaseModel):
+    """배치 추천 이력 조회 응답"""
+    id: str
+    target_ids: List[str]
+    candidate_ids: List[str]
+    top_n: int
+    results: List[dict]  # [{ rank, target_id, candidate_id, score, reason }]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

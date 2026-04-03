@@ -15,6 +15,8 @@ import type {
     AIRecommendRequest,
     AIRecommendResult,
     AIRecommendHistoryRead,
+    AIBatchRecommendRequest,
+    AIBatchRecommendResultItem,
     SharedProfileRead,
     DailyMatchingStatsResponse,
     Notice,
@@ -253,6 +255,16 @@ export async function getAIRecommendHistory(params?: {
     if (params?.limit !== undefined) qs.set("limit", String(params.limit));
     const query = qs.toString() ? `?${qs}` : "";
     return apiFetch(`/api/matchings/ai-recommend/history${query}`, { method: "GET" });
+}
+
+/** POST /api/matchings/ai-batch-recommend – N:M 배치 AI 추천 (관리자) */
+export async function getAIBatchRecommendations(
+    payload: AIBatchRecommendRequest
+): Promise<AIBatchRecommendResultItem[]> {
+    return apiFetch("/api/matchings/ai-batch-recommend", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
 }
 
 /** GET /api/matchings/stats/daily – 날짜별 매칭 통계 */

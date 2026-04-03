@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, getAIRecommendHistory, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
-import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History } from "lucide-react";
-import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, Notice } from "@/types/user";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
+import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap } from "lucide-react";
+import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, AIBatchRecommendResultItem, Notice } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -834,7 +834,7 @@ export default function AdminPage() {
     const [toDeleteId, setToDeleteId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
 
-    const [activeTab, setActiveTab] = useState<"USERS" | "MATCHINGS" | "NOTICES" | "AI_HISTORY">("USERS");
+    const [activeTab, setActiveTab] = useState<"USERS" | "MATCHINGS" | "NOTICES" | "AI_HISTORY" | "BATCH_AI">("USERS");
     const [matchings, setMatchings] = useState<MatchingResponse[]>([]);
     const [loadingMatchings, setLoadingMatchings] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -859,6 +859,15 @@ export default function AdminPage() {
     const [aiHistory, setAiHistory] = useState<AIRecommendHistoryRead[]>([]);
     const [loadingAiHistory, setLoadingAiHistory] = useState(false);
     const [selectedHistory, setSelectedHistory] = useState<AIRecommendHistoryRead | null>(null);
+
+    // N:M 배치 추천 관련 상태
+    const [batchTargetIds, setBatchTargetIds] = useState<string[]>([]);
+    const [batchCandidateIds, setBatchCandidateIds] = useState<string[]>([]);
+    const [batchTopN, setBatchTopN] = useState(3);
+    const [batchLoading, setBatchLoading] = useState(false);
+    const [batchResults, setBatchResults] = useState<AIBatchRecommendResultItem[]>([]);
+    const [batchError, setBatchError] = useState("");
+    const [batchReasonEdits, setBatchReasonEdits] = useState<Record<number, string>>({});
 
     const [selectedMatching, setSelectedMatching] = useState<MatchingResponse | null>(null);
 
@@ -1157,6 +1166,64 @@ export default function AdminPage() {
         }
     };
 
+    // ── N:M 배치 추천 함수 ───────────────────────
+    const handleBatchToggleTarget = (userId: string) => {
+        setBatchTargetIds(prev =>
+            prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+        );
+    };
+
+    const handleBatchToggleCandidate = (userId: string) => {
+        setBatchCandidateIds(prev =>
+            prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+        );
+    };
+
+    const handleRunBatchRecommend = async () => {
+        if (batchTargetIds.length === 0) { setBatchError("타겟 유저를 1명 이상 선택하세요."); return; }
+        if (batchCandidateIds.length === 0) { setBatchError("후보 유저를 1명 이상 선택하세요."); return; }
+        setBatchError("");
+        setBatchLoading(true);
+        setBatchResults([]);
+        setBatchReasonEdits({});
+        try {
+            const results = await getAIBatchRecommendations({
+                target_user_ids: batchTargetIds,
+                candidate_user_ids: batchCandidateIds,
+                top_n: batchTopN,
+            });
+            setBatchResults(results);
+            // 초기 사유 편집본 세팅
+            const edits: Record<number, string> = {};
+            results.forEach(r => { edits[r.rank] = r.reason; });
+            setBatchReasonEdits(edits);
+        } catch (err) {
+            setBatchError(err instanceof Error ? err.message : "배치 추천 중 오류가 발생했습니다.");
+        } finally {
+            setBatchLoading(false);
+        }
+    };
+
+    const handleCreateBatchMatch = async (item: AIBatchRecommendResultItem) => {
+        setCreatingMatch(true);
+        try {
+            await createMatching({
+                user_a_id: item.target_user_id,
+                user_b_id: item.candidate_user_id,
+                ai_score: item.score,
+                ai_reason: batchReasonEdits[item.rank] ?? item.reason,
+            });
+            alert(`${item.target_user.name} ↔ ${item.candidate_user.name} 매칭이 생성되었습니다.`);
+            // 생성된 쌍을 결과에서 제거
+            setBatchResults(prev => prev.filter(r => r.rank !== item.rank));
+            fetchMatchings();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "매칭 생성 실패");
+        } finally {
+            setCreatingMatch(false);
+        }
+    };
+
     // ─────────────────────────────────────────
     // 로그인 화면
     // ─────────────────────────────────────────
@@ -1263,6 +1330,13 @@ export default function AdminPage() {
                         onClick={() => setActiveTab("NOTICES")}
                     >
                         공지사항 ({notices.length})
+                    </button>
+                    <button
+                        className={`font-semibold pb-2 border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === "BATCH_AI" ? "border-purple-600 text-purple-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+                        onClick={() => setActiveTab("BATCH_AI")}
+                    >
+                        <Zap className="w-3.5 h-3.5" />
+                        N:M 배치 추천
                     </button>
                 </div>
 
@@ -1724,6 +1798,136 @@ export default function AdminPage() {
                         )}
                     </div>
                 )}
+
+                {/* --- N:M 배치 AI 추천 탭 --- */}
+                {activeTab === "BATCH_AI" && (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-slate-900 font-bold">N:M 배치 AI 매칭 추천</p>
+                                <p className="text-slate-500 text-xs mt-0.5">남성과 여성을 각각 선택하면 AI가 쌍방향 적합도를 분석하여 중복 없이 최적의 쌍을 추천합니다.</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500">추천 건수</span>
+                                <select
+                                    value={batchTopN}
+                                    onChange={e => setBatchTopN(Number(e.target.value))}
+                                    className="text-sm border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                >
+                                    {[1,2,3,4,5].map(n => (
+                                        <option key={n} value={n}>{n}쌍</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-bold text-blue-700">🎯 남성 ({batchTargetIds.length}명 선택)</p>
+                                    <button className="text-[10px] text-slate-400 hover:text-red-500 transition-colors" onClick={() => setBatchTargetIds([])}>전체 해제</button>
+                                </div>
+                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                                    {users.filter(u => u.is_active && u.gender === "MALE").map(u => (
+                                        <label key={u.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${batchTargetIds.includes(u.id) ? "bg-blue-50 border-blue-300" : "bg-white border-slate-100 hover:bg-slate-50"} ${batchCandidateIds.includes(u.id) ? "opacity-40 pointer-events-none" : ""}`}>
+                                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" checked={batchTargetIds.includes(u.id)} onChange={() => handleBatchToggleTarget(u.id)} disabled={batchCandidateIds.includes(u.id)} />
+                                            <span className="text-[10px]">{u.gender === "MALE" ? "👨" : "👩"}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-semibold text-slate-900 truncate">{u.name}</p>
+                                                <p className="text-[10px] text-slate-400 truncate">{u.birth_year % 100}년생 · {u.job}</p>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-bold text-pink-700">💝 여성 ({batchCandidateIds.length}명 선택)</p>
+                                    <button className="text-[10px] text-slate-400 hover:text-red-500 transition-colors" onClick={() => setBatchCandidateIds([])}>전체 해제</button>
+                                </div>
+                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                                    {users.filter(u => u.is_active && u.gender === "FEMALE").map(u => (
+                                        <label key={u.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${batchCandidateIds.includes(u.id) ? "bg-pink-50 border-pink-300" : "bg-white border-slate-100 hover:bg-slate-50"} ${batchTargetIds.includes(u.id) ? "opacity-40 pointer-events-none" : ""}`}>
+                                            <input type="checkbox" className="w-4 h-4 text-pink-600 rounded" checked={batchCandidateIds.includes(u.id)} onChange={() => handleBatchToggleCandidate(u.id)} disabled={batchTargetIds.includes(u.id)} />
+                                            <span className="text-[10px]">{u.gender === "MALE" ? "👨" : "👩"}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-semibold text-slate-900 truncate">{u.name}</p>
+                                                <p className="text-[10px] text-slate-400 truncate">{u.birth_year % 100}년생 · {u.job}</p>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {batchError && (
+                            <div className="p-3 bg-red-50 rounded-lg border border-red-100">
+                                <p className="text-sm text-red-600">{batchError}</p>
+                            </div>
+                        )}
+
+                        <Button
+                            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold h-11 rounded-xl flex items-center justify-center gap-2"
+                            onClick={handleRunBatchRecommend}
+                            disabled={batchLoading || batchTargetIds.length === 0 || batchCandidateIds.length === 0}
+                        >
+                            {batchLoading ? (
+                                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />AI 분석 중... (타겟 {batchTargetIds.length}명 × 후보 {batchCandidateIds.length}명)</>
+                            ) : (
+                                <><Zap className="w-4 h-4" />AI 배치 추천 실행 ({batchTargetIds.length} × {batchCandidateIds.length})</>
+                            )}
+                        </Button>
+
+                        {batchResults.length > 0 && (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-purple-500" />
+                                    <p className="text-sm font-bold text-slate-900">AI 추천 결과 (상위 {batchResults.length}쌍)</p>
+                                </div>
+                                {batchResults.map((item) => (
+                                    <Card key={item.rank} className="border-purple-100 overflow-hidden shadow-sm">
+                                        <div className="bg-gradient-to-r from-purple-50 to-white px-4 py-3 border-b border-purple-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-black">{item.rank}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-bold text-blue-700">{item.target_user.name}</span>
+                                                    <span className="text-slate-400">↔</span>
+                                                    <span className="text-sm font-bold text-pink-700">{item.candidate_user.name}</span>
+                                                </div>
+                                                <div className="text-xs text-slate-400">
+                                                    {item.target_user.birth_year % 100}년생 · {item.target_user.job}<span className="mx-1">/</span>{item.candidate_user.birth_year % 100}년생 · {item.candidate_user.job}
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-[10px] text-purple-500 font-semibold">AI 적합도</span>
+                                                <div className="bg-purple-600 text-white font-bold text-base px-2.5 py-0.5 rounded shadow-sm">{item.score}점</div>
+                                            </div>
+                                        </div>
+                                        <CardContent className="p-4 bg-white space-y-4">
+                                            <div className="bg-slate-50 rounded p-3 border border-slate-100">
+                                                <p className="font-semibold text-slate-900 mb-2 text-xs">🤖 AI 추천 사유 (수정 가능)</p>
+                                                <Textarea
+                                                    value={batchReasonEdits[item.rank] ?? item.reason}
+                                                    onChange={e => setBatchReasonEdits(prev => ({ ...prev, [item.rank]: e.target.value }))}
+                                                    className="text-xs bg-white border-slate-200 min-h-24 leading-relaxed resize-none focus:ring-1 focus:ring-purple-500"
+                                                />
+                                            </div>
+                                            <Button
+                                                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                                                disabled={creatingMatch}
+                                                onClick={() => handleCreateBatchMatch(item)}
+                                            >
+                                                {creatingMatch ? "매칭 생성 중..." : `${item.target_user.name} ↔ ${item.candidate_user.name} 매칭 확정`}
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
             </div>
 
             {/* AI 추천 이력 상세 다이얼로그 */}

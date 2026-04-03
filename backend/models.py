@@ -204,3 +204,29 @@ class AiRecommendHistory(Base):
     def __repr__(self) -> str:
         return f"<AiRecommendHistory id={self.id!r} target={self.target_user_id!r}>"
 
+
+# ---------------------------------------------------------------------------
+# AiBatchRecommendHistory 모델
+# ---------------------------------------------------------------------------
+
+class AiBatchRecommendHistory(Base):
+    """N:M 배치 AI 매칭 추천 결과 이력 테이블"""
+    __tablename__ = "ai_batch_recommend_histories"
+
+    id = Column(
+        UUID_TEXT,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        nullable=False,
+    )
+    # 입력으로 받은 타겟/후보 ID 목록 (JSON 배열)
+    target_ids = Column(JSON, nullable=False, default=list)
+    candidate_ids = Column(JSON, nullable=False, default=list)
+    top_n = Column(Integer, nullable=False, default=3)
+    # 결과: [{ "rank": int, "target_id": str, "candidate_id": str, "score": int, "reason": str }, ...]
+    results = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<AiBatchRecommendHistory id={self.id!r} top_n={self.top_n}>"
+

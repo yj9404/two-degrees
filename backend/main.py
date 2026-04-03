@@ -19,9 +19,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 
 from database import Base, engine, get_db
-from models import Gender, User, Matching, MatchStatus, Notice, AiRecommendHistory
+from models import Gender, User, Matching, MatchStatus, Notice, AiRecommendHistory, AiBatchRecommendHistory
 from schemas import (
     AdminAuthRequest,
+    AIBatchRecommendHistoryRead,
+    AIBatchRecommendRequest,
+    AIBatchRecommendResultItem,
     AIRecommendRequest,
     AIRecommendHistoryRead,
     AIRecommendResult,
@@ -819,9 +822,9 @@ def ai_recommend_matchings(
             for c in new_candidates
         ]
 
-        from utils.claude import get_claude_recommendations
+        from utils.gemini import get_ai_recommendations
         try:
-            raw_recs = get_claude_recommendations(target_dict, candidates_dict_list)
+            raw_recs = get_ai_recommendations(target_dict, candidates_dict_list)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러가 발생했습니다: {str(e)}")
 
@@ -880,6 +883,221 @@ def ai_recommend_matchings(
 
     all_results.sort(key=lambda x: x.score, reverse=True)
     return all_results
+
+
+# ---------------------------------------------------------------------------
+# POST /api/matchings/ai-batch-recommend – N:M 배치 AI 매칭 추천
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/api/matchings/ai-batch-recommend",
+    response_model=list[AIBatchRecommendResultItem],
+    summary="N:M 배치 AI 매칭 추천",
+    tags=["matchings"],
+)
+def ai_batch_recommend_matchings(
+    payload: AIBatchRecommendRequest,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """
+    N명의 타겟과 M명의 후보를 AI가 전방위 평가하여 최적의 상위 top_n 쌍을 추천합니다.
+    - 동일 인물이 두 쌍에 중복 등장하지 않습니다 (Greedy Assignment).
+    - 기존 AiRecommendHistory 캐시를 재사용하여 AI 호출을 최소화합니다.
+    - 이미 매칭 진행 중인 유저는 자동으로 제외됩니다.
+    """
+    from schemas import UserRead
+    from utils.gemini import get_ai_recommendations
+
+    # 1. 타겟 유저 목록 조회
+    targets = db.query(User).filter(User.id.in_(payload.target_user_ids)).all()
+    if not targets:
+        raise HTTPException(status_code=404, detail="타겟 유저를 찾을 수 없습니다.")
+
+    # 2. 현재 매칭 진행 중인 유저 ID 집합 계산
+    busy_matches = db.query(Matching).filter(
+        (Matching.user_a_status != MatchStatus.REJECTED) &
+        (Matching.user_b_status != MatchStatus.REJECTED) &
+        (Matching.is_contact_shared == False)
+    ).all()
+    busy_user_ids = {m.user_a_id for m in busy_matches} | {m.user_b_id for m in busy_matches}
+
+    # 3. 유효한 타겟 필터링 (진행 중 매칭 제외)
+    valid_targets = [t for t in targets if t.id not in busy_user_ids]
+    if not valid_targets:
+        raise HTTPException(status_code=422, detail="유효한 타겟 유저가 없습니다. 모두 매칭 진행 중입니다.")
+
+    # 4. 후보 유저 목록 조회
+    candidates_all = db.query(User).filter(
+        User.id.in_(payload.candidate_user_ids),
+        User.id.notin_(busy_user_ids),
+    ).all()
+    if not candidates_all:
+        raise HTTPException(status_code=422, detail="유효한 후보 유저가 없습니다.")
+
+    # 이미 매칭 이력이 있는 쌍 조회 (재매칭 방지)
+    all_involved_ids = {t.id for t in valid_targets} | {c.id for c in candidates_all}
+    existing_matches = db.query(Matching).filter(
+        (Matching.user_a_id.in_(all_involved_ids)) | (Matching.user_b_id.in_(all_involved_ids))
+    ).all()
+    existing_pairs: set[frozenset] = {
+        frozenset([m.user_a_id, m.user_b_id]) for m in existing_matches
+    }
+
+    exclude_fields = {"name", "referrer_name", "photo_urls"}
+
+    # 5. 점수 행렬 구축: score_matrix[target_id][candidate_id] = {score, reason}
+    score_matrix: dict[str, dict[str, dict]] = {}
+
+    for target in valid_targets:
+        tid = target.id
+        score_matrix[tid] = {}
+
+        # 추천인 동일 후보 제거
+        valid_candidates = [
+            c for c in candidates_all
+            if getattr(c, "referrer_name", None) != getattr(target, "referrer_name", None)
+            and frozenset([tid, c.id]) not in existing_pairs
+        ]
+        if not valid_candidates:
+            continue
+
+        candidate_id_set = {c.id for c in valid_candidates}
+
+        # 캐시 조회 (기존 AiRecommendHistory 재활용)
+        recent_histories = (
+            db.query(AiRecommendHistory)
+            .filter(AiRecommendHistory.target_user_id == tid)
+            .order_by(AiRecommendHistory.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        cached_results: dict[str, dict] = {}
+        for hist in recent_histories:
+            if isinstance(hist.candidate_results, dict):
+                for cid, data in hist.candidate_results.items():
+                    if cid not in cached_results:
+                        cached_results[cid] = data
+
+        cached_ids = candidate_id_set & set(cached_results.keys())
+        new_ids = candidate_id_set - cached_ids
+
+        new_api_results: dict[str, dict] = {}
+
+        if new_ids:
+            target_dict = UserRead.model_validate(target).model_dump(mode='json', exclude=exclude_fields)
+            new_candidates = [c for c in valid_candidates if c.id in new_ids]
+            candidates_dict_list = [
+                UserRead.model_validate(c).model_dump(mode='json', exclude=exclude_fields)
+                for c in new_candidates
+            ]
+            try:
+                raw_recs = get_ai_recommendations(target_dict, candidates_dict_list)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러: {str(e)}")
+
+            for rec in raw_recs:
+                try:
+                    parsed = AIRecommendResult(**rec)
+                    new_api_results[parsed.candidate_id] = {"score": parsed.score, "reason": parsed.reason}
+                except Exception:
+                    pass
+
+            # 캐시 업데이트 (기존 AiRecommendHistory 갱신)
+            merged = {**cached_results, **new_api_results}
+            latest_hist = (
+                db.query(AiRecommendHistory)
+                .filter(AiRecommendHistory.target_user_id == tid)
+                .order_by(AiRecommendHistory.created_at.desc())
+                .first()
+            )
+            if latest_hist:
+                latest_hist.candidate_results = merged
+                latest_hist.created_at = datetime.now(timezone.utc)
+                db.add(latest_hist)
+            else:
+                db.add(AiRecommendHistory(
+                    target_user_id=tid,
+                    candidate_results=merged,
+                ))
+            db.commit()
+
+        # 점수 행렬에 채우기 (캐시 + 신규)
+        for cid in candidate_id_set:
+            if cid in new_api_results:
+                score_matrix[tid][cid] = new_api_results[cid]
+            elif cid in cached_results:
+                score_matrix[tid][cid] = cached_results[cid]
+
+    # 6. Greedy Assignment: 점수 높은 순으로 top_n 쌍 선택 (중복 없이)
+    # 가능한 모든 (target_id, candidate_id, score) 조합을 점수 내림차순 정렬
+    all_pairs: list[tuple[int, str, str, str]] = []  # (score, target_id, candidate_id, reason)
+    for tid, cand_scores in score_matrix.items():
+        for cid, data in cand_scores.items():
+            all_pairs.append((data["score"], tid, cid, data["reason"]))
+    all_pairs.sort(key=lambda x: x[0], reverse=True)
+
+    used_targets: set[str] = set()
+    used_candidates: set[str] = set()
+    selected_pairs: list[dict] = []
+
+    for score, tid, cid, reason in all_pairs:
+        if len(selected_pairs) >= payload.top_n:
+            break
+        if tid in used_targets or cid in used_candidates:
+            continue
+        used_targets.add(tid)
+        used_candidates.add(cid)
+        selected_pairs.append({
+            "rank": len(selected_pairs) + 1,
+            "target_id": tid,
+            "candidate_id": cid,
+            "score": score,
+            "reason": reason,
+        })
+
+    if not selected_pairs:
+        return []
+
+    # 7. 결과를 AiBatchRecommendHistory에 저장
+    batch_hist = AiBatchRecommendHistory(
+        target_ids=payload.target_user_ids,
+        candidate_ids=payload.candidate_user_ids,
+        top_n=payload.top_n,
+        results=selected_pairs,
+    )
+    db.add(batch_hist)
+    db.commit()
+
+    # 8. 응답 구성 (유저 정보 포함)
+    user_ids_needed = {p["target_id"] for p in selected_pairs} | {p["candidate_id"] for p in selected_pairs}
+    users_map: dict[str, User] = {
+        u.id: u for u in db.query(User).filter(User.id.in_(user_ids_needed)).all()
+    }
+    # match_count 주입 (UserReadAdmin 호환)
+    from sqlalchemy import or_ as sa_or
+    for u in users_map.values():
+        u.match_count = db.query(Matching).filter(
+            sa_or(Matching.user_a_id == u.id, Matching.user_b_id == u.id)
+        ).count()
+
+    result: list[AIBatchRecommendResultItem] = []
+    for pair in selected_pairs:
+        target_user = users_map.get(pair["target_id"])
+        candidate_user = users_map.get(pair["candidate_id"])
+        if not target_user or not candidate_user:
+            continue
+        result.append(AIBatchRecommendResultItem(
+            rank=pair["rank"],
+            target_user_id=pair["target_id"],
+            candidate_user_id=pair["candidate_id"],
+            score=pair["score"],
+            reason=pair["reason"],
+            target_user=UserReadAdmin.model_validate(target_user),
+            candidate_user=UserReadAdmin.model_validate(candidate_user),
+        ))
+
+    return result
 
 
 # ---------------------------------------------------------------------------
