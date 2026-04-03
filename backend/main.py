@@ -928,6 +928,7 @@ def ai_batch_recommend_matchings(
     """
     from schemas import UserRead
     from utils.gemini import get_ai_recommendations
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     # 1. 타겟 유저 목록 조회
     targets = db.query(User).filter(User.id.in_(payload.target_user_ids)).all()
@@ -966,25 +967,23 @@ def ai_batch_recommend_matchings(
 
     exclude_fields = {"name", "referrer_name", "photo_urls"}
 
-    # 5. 점수 행렬 구축: score_matrix[target_id][candidate_id] = {score, reason}
-    score_matrix: dict[str, dict[str, dict]] = {}
+    # 5. Phase 1: 캐시 조회 및 AI 호출 대상 수집 (DB 작업, 순차)
+    # target_task_data: (target, cached_results, new_candidates, valid_candidates)
+    target_task_data: list[tuple] = []
 
     for target in valid_targets:
         tid = target.id
-        score_matrix[tid] = {}
-
-        # 추천인 동일 후보 제거
         valid_candidates = [
             c for c in candidates_all
             if getattr(c, "referrer_name", None) != getattr(target, "referrer_name", None)
             and frozenset([tid, c.id]) not in existing_pairs
         ]
         if not valid_candidates:
+            target_task_data.append((target, {}, [], [], {}, []))
             continue
 
         candidate_id_set = {c.id for c in valid_candidates}
 
-        # 캐시 조회 (기존 AiRecommendHistory 재활용)
         recent_histories = (
             db.query(AiRecommendHistory)
             .filter(AiRecommendHistory.target_user_id == tid)
@@ -999,31 +998,68 @@ def ai_batch_recommend_matchings(
                     if cid not in cached_results:
                         cached_results[cid] = data
 
-        cached_ids = candidate_id_set & set(cached_results.keys())
-        new_ids = candidate_id_set - cached_ids
+        new_ids = candidate_id_set - set(cached_results.keys())
+        new_candidates = [c for c in valid_candidates if c.id in new_ids]
 
-        new_api_results: dict[str, dict] = {}
-
-        if new_ids:
+        if new_candidates:
             target_dict = UserRead.model_validate(target).model_dump(mode='json', exclude=exclude_fields)
-            new_candidates = [c for c in valid_candidates if c.id in new_ids]
             candidates_dict_list = [
                 UserRead.model_validate(c).model_dump(mode='json', exclude=exclude_fields)
                 for c in new_candidates
             ]
-            try:
-                raw_recs = get_ai_recommendations(target_dict, candidates_dict_list)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러: {str(e)}")
+        else:
+            target_dict = {}
+            candidates_dict_list = []
 
-            for rec in raw_recs:
+        target_task_data.append((target, cached_results, new_candidates, valid_candidates, target_dict, candidates_dict_list))
+
+    # Phase 2: AI 호출을 병렬로 실행 (타임아웃 방지)
+    def call_ai_for_target(t_dict, c_dict_list):
+        return get_ai_recommendations(t_dict, c_dict_list)
+
+    ai_call_results: dict[str, list] = {}  # tid -> raw_recs
+    targets_needing_ai = [
+        (t, t_dict, c_dict_list) 
+        for t, cached, nc, vc, t_dict, c_dict_list in target_task_data 
+        if nc
+    ]
+
+    if targets_needing_ai:
+        with ThreadPoolExecutor(max_workers=min(len(targets_needing_ai), 5)) as executor:
+            future_to_tid = {
+                executor.submit(call_ai_for_target, t_dict, c_dict_list): t.id
+                for t, t_dict, c_dict_list in targets_needing_ai
+            }
+            errors = []
+            for future in as_completed(future_to_tid):
+                tid = future_to_tid[future]
+                try:
+                    ai_call_results[tid] = future.result()
+                except Exception as e:
+                    errors.append(str(e))
+            if errors and not ai_call_results:
+                raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러: {errors[0]}")
+
+    # Phase 3: 결과 처리, 캐시 업데이트, 점수 행렬 구축 (DB 작업, 순차)
+    score_matrix: dict[str, dict[str, dict]] = {}
+
+    for target, cached_results, new_candidates, valid_candidates, t_dict, c_dict_list in target_task_data:
+        tid = target.id
+        score_matrix[tid] = {}
+        if not valid_candidates:
+            continue
+
+        candidate_id_set = {c.id for c in valid_candidates}
+        new_api_results: dict[str, dict] = {}
+
+        if tid in ai_call_results:
+            for rec in ai_call_results[tid]:
                 try:
                     parsed = AIRecommendResult(**rec)
                     new_api_results[parsed.candidate_id] = {"score": parsed.score, "reason": parsed.reason}
                 except Exception:
                     pass
 
-            # 캐시 업데이트 (기존 AiRecommendHistory 갱신)
             merged = {**cached_results, **new_api_results}
             latest_hist = (
                 db.query(AiRecommendHistory)
@@ -1042,7 +1078,6 @@ def ai_batch_recommend_matchings(
                 ))
             db.commit()
 
-        # 점수 행렬에 채우기 (캐시 + 신규)
         for cid in candidate_id_set:
             if cid in new_api_results:
                 score_matrix[tid][cid] = new_api_results[cid]
