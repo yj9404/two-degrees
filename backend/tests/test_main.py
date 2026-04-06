@@ -402,3 +402,27 @@ def test_update_matching_invalid_user_id(client, monkeypatch):
 
     assert res_update.status_code == 404
     assert "이 매칭에 속하지 않은 유저입니다" in res_update.json()["detail"]
+
+def test_register_duplicate_contact_exact_format(client):
+    """
+    [User API] 똑같은 연락처로 중복 가입 시도 시 400 에러 반환 검증
+    """
+    payload = {
+        "name": "홍길동",
+        "gender": "MALE",
+        "birth_year": 1990,
+        "job": "개발자",
+        "contact": "010-1234-5678",
+        "password": "testpassword",
+        "referrer_name": "김철수",
+        "desired_conditions": "성격이 밝고 유머 감각이 있는 분",
+        "deal_breakers": "흡연자, 종교 강요"
+    }
+    # 첫 번째 등록 성공
+    res1 = client.post("/api/users", json=payload)
+    assert res1.status_code == 201
+
+    # 두 번째 중복 등록 실패 (정확히 같은 번호)
+    res2 = client.post("/api/users", json=payload)
+    assert res2.status_code == 400
+    assert "이미 등록된 연락처입니다." in res2.json()["detail"]
