@@ -581,7 +581,7 @@ def create_matching(payload: MatchingCreate, db: Session = Depends(get_db), _adm
     if not user_a or not user_b:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="매칭하려는 유저를 찾을 수 없습니다.",
+            detail="매칭할 유저를 찾을 수 없습니다.",
         )
 
     # 항상 문자열 기준으로 정렬해서 저장
