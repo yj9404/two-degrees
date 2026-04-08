@@ -28,13 +28,39 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 let adminToken: string | null = null;
 
 /** 관리자 인증 토큰 설정 */
-export function setAdminToken(token: string) {
+export function setAdminToken(token: string | null) {
     adminToken = token;
+
+    if (typeof window !== "undefined") {
+        const isSecure = window.location.protocol === "https:";
+        const secureFlag = isSecure ? ";Secure" : "";
+
+        if (token) {
+            // 1일(24시간) 유지
+            const expires = new Date();
+            expires.setTime(expires.getTime() + 24 * 60 * 60 * 1000);
+            // Secure; SameSite=Lax 추가 (HttpOnly는 클라이언트 JS에서 설정 불가)
+            document.cookie = `admin_token=${token};expires=${expires.toUTCString()};path=/;SameSite=Lax${secureFlag}`;
+        } else {
+            // 토큰이 null이면 쿠키 삭제
+            document.cookie = `admin_token=;path=/;Max-Age=0;SameSite=Lax${secureFlag}`;
+        }
+    }
 }
 
 /** 관리자 인증 토큰 가져오기 */
 export function getAdminToken() {
     return adminToken;
+}
+
+/** 쿠키에서 관리자 토큰 초기화 */
+export function initAdminTokenFromCookie() {
+    if (typeof document !== "undefined") {
+        const match = document.cookie.match(/(?:^|;\s*)admin_token=([^;]+)/);
+        if (match) {
+            adminToken = match[1];
+        }
+    }
 }
 
 /** 공통 fetch 헬퍼 */
