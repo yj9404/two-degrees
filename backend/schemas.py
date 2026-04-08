@@ -325,7 +325,7 @@ class AIRecommendHistoryRead(BaseModel):
 
 class AIBatchRecommendRequest(BaseModel):
     """POST /api/matchings/ai-batch-recommend 요청 바디"""
-    target_user_ids: List[str] = Field(..., min_length=1, max_length=10, description="타겟 유저 ID 목록 (최대 10명)")
+    target_user_ids: List[str] = Field(..., min_length=1, description="타겟 유저 ID 목록")
     candidate_user_ids: List[str] = Field(..., min_length=1, description="후보 유저 ID 목록")
     top_n: int = Field(3, ge=1, le=10, description="추천받을 최대 쌍 수")
 
