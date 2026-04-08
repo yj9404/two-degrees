@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
 import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap } from "lucide-react";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, AIBatchRecommendResultItem, Notice } from "@/types/user";
 import { Button } from "@/components/ui/button";
@@ -820,6 +820,14 @@ function CompareUsersDialog({
 // ─────────────────────────────────────────────
 export default function AdminPage() {
     const [authed, setAuthed] = useState(false);
+
+    // 페이지 로드 시 쿠키에서 토큰 복원
+    useEffect(() => {
+        initAdminTokenFromCookie();
+        if (getAdminToken()) {
+            setAuthed(true);
+        }
+    }, []);
     const [pw, setPw] = useState("");
     const [authError, setAuthError] = useState("");
     const [authLoading, setAuthLoading] = useState(false);
