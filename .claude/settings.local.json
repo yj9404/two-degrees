@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(ls -la /c/Users/yjlee/workspace/TwoDegrees/frontend/app/*/)",
-      "Bash(xargs ls:*)"
-    ]
-  }
-}
