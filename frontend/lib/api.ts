@@ -30,6 +30,13 @@ let adminToken: string | null = null;
 /** 관리자 인증 토큰 설정 */
 export function setAdminToken(token: string) {
     adminToken = token;
+
+    if (typeof window !== "undefined") {
+        // 1일(24시간) 유지
+        const expires = new Date();
+        expires.setTime(expires.getTime() + 24 * 60 * 60 * 1000);
+        document.cookie = `admin_token=${token};expires=${expires.toUTCString()};path=/`;
+    }
 }
 
 /** 관리자 인증 토큰 가져오기 */
