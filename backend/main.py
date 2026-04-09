@@ -489,16 +489,38 @@ def list_users(
     if ref_age is not None:
         _CURRENT_YEAR = 2026
         def _accepts_ref_age(u: User) -> bool:
+            age_pref: list = u.age_preference or []
             user_age = _CURRENT_YEAR - u.birth_year + 1
-            # age_gap가 모두 NULL → 선호 연령 데이터 없음 → 상관없음 처리
-            if u.age_gap_older is None and u.age_gap_younger is None:
+
+            # 선호 데이터 없음 → 상관없음
+            if not age_pref:
                 return True
-            # NULL인 쪽은 해당 방향 제한 없음
-            if u.age_gap_older is not None and ref_age < user_age - u.age_gap_older:
-                return False
-            if u.age_gap_younger is not None and ref_age > user_age + u.age_gap_younger:
-                return False
-            return True
+            # ANY이고 gap도 없음 → 상관없음
+            if "ANY" in age_pref and u.age_gap_older is None and u.age_gap_younger is None:
+                return True
+
+            # 동갑 허용
+            if "SAME" in age_pref and ref_age == user_age:
+                return True
+
+            # 연상 허용: ref_age가 user보다 나이 많아야 하고, gap_older 이내
+            if "OLDER" in age_pref and ref_age > user_age:
+                if u.age_gap_older is None or ref_age <= user_age + u.age_gap_older:
+                    return True
+
+            # 연하 허용: ref_age가 user보다 나이 적어야 하고, gap_younger 이내
+            if "YOUNGER" in age_pref and ref_age < user_age:
+                if u.age_gap_younger is None or ref_age >= user_age - u.age_gap_younger:
+                    return True
+
+            # ANY이지만 gap 데이터가 있는 경우 → gap 범위로 체크
+            if "ANY" in age_pref:
+                lower = (user_age - u.age_gap_younger) if u.age_gap_younger is not None else 0
+                upper = (user_age + u.age_gap_older) if u.age_gap_older is not None else 9999
+                if lower <= ref_age <= upper:
+                    return True
+
+            return False
         users = [u for u in users if _accepts_ref_age(u)]
 
     # 데이터베이스 레벨에서 카운트 집계
