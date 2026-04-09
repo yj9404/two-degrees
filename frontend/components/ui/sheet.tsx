@@ -58,6 +58,7 @@ function SheetContent({
       <SheetOverlay />
       <DialogPrimitive.Content
         data-slot="sheet-content"
+        aria-describedby={undefined}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-background p-6 shadow-lg duration-300 outline-none",
           "data-[state=closed]:animate-out data-[state=open]:animate-in",

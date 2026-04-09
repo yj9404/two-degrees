@@ -61,7 +61,7 @@ app = FastAPI(
 # 운영 환경에서는 ALLOWED_ORIGINS 환경변수를 통해 허용할 출처를 명시적으로 설정합니다.
 allowed_origins_str = os.environ.get(
     "ALLOWED_ORIGINS",
-    "http://localhost:3000, http://localhost:3001, http://localhost:8000"
+    "http://localhost:3000, http://localhost:3001, http://localhost:8000, http://127.0.0.1:3000, http://127.0.0.1:8000"
 )
 allowed_origins = [origin.strip().rstrip('/') for origin in allowed_origins_str.split(",") if origin.strip()]
 
@@ -479,25 +479,27 @@ def list_users(
         except ValueError:
             pass
 
-    # 선호 연령대 교차 검증 (핵심 로직)
-    # ref_age: 검색 기준이 되는 나이 (예: 27세)
-    # 유저의 한국 나이 = CURRENT_YEAR - birth_year + 1
+    users = query.all()
+
+    # 선호 연령대 교차 검증 — SQL 연산 대신 Python 후처리로 안전하게 수행
+    # 유저의 한국 나이 = 2026 - birth_year + 1
     # 유저가 허용하는 파트너 나이 범위:
-    #   최소 = 유저 나이 - age_gap_older  (연상 허용: 파트너가 유저보다 age_gap_older만큼 나이 많아도 됨)
-    #   최대 = 유저 나이 + age_gap_younger (연하 허용: 파트너가 유저보다 age_gap_younger만큼 어려도 됨)
-    # NULL 처리: age_gap이 NULL이면 0으로 간주 (해당 방향 나이차 허용 없음)
+    #   하한 = 유저 나이 - age_gap_older  (연상 파트너 허용 최대 나이차)
+    #   상한 = 유저 나이 + age_gap_younger (연하 파트너 허용 최대 나이차)
     if ref_age is not None:
         _CURRENT_YEAR = 2026
-        user_age_expr = _CURRENT_YEAR - User.birth_year + 1
-        gap_older = func.coalesce(User.age_gap_older, 0)    # 유저가 허용하는 연상 나이차
-        gap_younger = func.coalesce(User.age_gap_younger, 0)  # 유저가 허용하는 연하 나이차
-        # ref_age가 [user_age - gap_older, user_age + gap_younger] 범위 안에 있어야 함
-        query = query.filter(
-            (user_age_expr - gap_older) <= ref_age,
-            (user_age_expr + gap_younger) >= ref_age,
-        )
-
-    users = query.all()
+        def _accepts_ref_age(u: User) -> bool:
+            user_age = _CURRENT_YEAR - u.birth_year + 1
+            # age_gap가 모두 NULL → 선호 연령 데이터 없음 → 상관없음 처리
+            if u.age_gap_older is None and u.age_gap_younger is None:
+                return True
+            # NULL인 쪽은 해당 방향 제한 없음
+            if u.age_gap_older is not None and ref_age < user_age - u.age_gap_older:
+                return False
+            if u.age_gap_younger is not None and ref_age > user_age + u.age_gap_younger:
+                return False
+            return True
+        users = [u for u in users if _accepts_ref_age(u)]
 
     # 데이터베이스 레벨에서 카운트 집계
     from sqlalchemy import func

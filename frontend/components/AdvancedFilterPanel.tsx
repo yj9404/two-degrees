@@ -37,7 +37,12 @@ interface Props {
 
 // ── 상수 ─────────────────────────────────────────────────────────────────────
 
-const MBTI_LETTERS = ["E", "I", "S", "N", "F", "T", "J", "P"] as const;
+// 윗줄: E S T P / 아랫줄: I N F J
+const MBTI_ROWS = [
+    ["E", "S", "T", "P"],
+    ["I", "N", "F", "J"],
+] as const;
+const MBTI_LETTERS = MBTI_ROWS.flat();
 
 const RELIGION_OPTIONS = [
     { value: "무교", label: "무교" },
@@ -180,18 +185,22 @@ export default function AdvancedFilterPanel({ onApply, activeCount }: Props) {
 
                     {/* MBTI */}
                     <FilterSection label="MBTI 포함 (중복 선택)">
-                        <div className="grid grid-cols-4 gap-2">
-                            {MBTI_LETTERS.map((letter) => (
-                                <label
-                                    key={letter}
-                                    className="flex items-center gap-1.5 cursor-pointer select-none"
-                                >
-                                    <Checkbox
-                                        checked={form.mbtiLetters.includes(letter)}
-                                        onCheckedChange={() => toggleMbti(letter)}
-                                    />
-                                    <span className="text-sm font-medium text-slate-700">{letter}</span>
-                                </label>
+                        <div className="space-y-2">
+                            {MBTI_ROWS.map((row, rowIdx) => (
+                                <div key={rowIdx} className="grid grid-cols-4 gap-2">
+                                    {row.map((letter) => (
+                                        <label
+                                            key={letter}
+                                            className="flex items-center gap-1.5 cursor-pointer select-none"
+                                        >
+                                            <Checkbox
+                                                checked={form.mbtiLetters.includes(letter)}
+                                                onCheckedChange={() => toggleMbti(letter)}
+                                            />
+                                            <span className="text-sm font-medium text-slate-700">{letter}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             ))}
                         </div>
                         {form.mbtiLetters.length > 0 && (

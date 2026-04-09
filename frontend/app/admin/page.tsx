@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
 import AdvancedFilterPanel, { type AdvancedFilterValues } from "@/components/AdvancedFilterPanel";
 import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap } from "lucide-react";
@@ -844,6 +844,7 @@ export default function AdminPage() {
     const [filterSmoking, setFilterSmoking] = useState<"" | "SMOKER" | "NON_SMOKER">("");
     const [filterName, setFilterName] = useState("");
     const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilterValues>({});
+    const advancedFiltersRef = useRef<AdvancedFilterValues>({});
     const [selectedUser, setSelectedUser] = useState<UserReadAdmin | null>(null);
     const [toDeleteId, setToDeleteId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
@@ -887,20 +888,33 @@ export default function AdminPage() {
     const [selectedMatching, setSelectedMatching] = useState<MatchingResponse | null>(null);
 
     // ── 유저 목록 fetch ──────────────────────
-    const fetchUsers = useCallback(async (overrideFilters?: AdvancedFilterValues) => {
+    // advancedFiltersRef를 사용해 stale closure 없이 항상 최신 필터를 참조
+    const fetchUsers = useCallback(async () => {
         setLoadingUsers(true);
         try {
-            const filters = overrideFilters ?? advancedFilters;
-            const data = await listUsers({ ...filters });
-            setUsers(data);
+            const { gender, ...otherFilters } = advancedFiltersRef.current;
+
+            if (gender) {
+                // 선택된 성별에만 나머지 조건 적용, 반대 성별은 조건 없이 전체 조회
+                const oppositeGender = gender === "MALE" ? "FEMALE" : "MALE";
+                const [filtered, unfiltered] = await Promise.all([
+                    listUsers({ ...otherFilters, gender }),
+                    listUsers({ gender: oppositeGender }),
+                ]);
+                setUsers([...filtered, ...unfiltered]);
+            } else {
+                const data = await listUsers({ ...advancedFiltersRef.current });
+                setUsers(data);
+            }
         } finally {
             setLoadingUsers(false);
         }
-    }, [advancedFilters]);
+    }, []);
 
     const handleApplyAdvancedFilters = useCallback((filters: AdvancedFilterValues) => {
-        setAdvancedFilters(filters);
-        fetchUsers(filters);
+        advancedFiltersRef.current = filters;
+        setAdvancedFilters(filters); // activeCount 뱃지용
+        fetchUsers();
     }, [fetchUsers]);
 
     const fetchMatchings = useCallback(async () => {
@@ -1455,7 +1469,7 @@ export default function AdminPage() {
                                     <option value="NON_SMOKER">비흡연</option>
                                     <option value="SMOKER">흡연</option>
                                 </select>
-                                <Button size="sm" variant="outline" onClick={() => fetchUsers()} disabled={loadingUsers}>
+                                <Button size="sm" variant="outline" onClick={fetchUsers} disabled={loadingUsers}>
                                     {loadingUsers ? "로딩 중..." : "새로고침"}
                                 </Button>
                                 <AdvancedFilterPanel
