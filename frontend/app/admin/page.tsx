@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
+import AdvancedFilterPanel, { type AdvancedFilterValues } from "@/components/AdvancedFilterPanel";
 import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap } from "lucide-react";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, AIBatchRecommendResultItem, Notice } from "@/types/user";
 import { Button } from "@/components/ui/button";
@@ -842,6 +843,7 @@ export default function AdminPage() {
     const [filterActive, setFilterActive] = useState<"" | "true" | "false">("");
     const [filterSmoking, setFilterSmoking] = useState<"" | "SMOKER" | "NON_SMOKER">("");
     const [filterName, setFilterName] = useState("");
+    const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilterValues>({});
     const [selectedUser, setSelectedUser] = useState<UserReadAdmin | null>(null);
     const [toDeleteId, setToDeleteId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
@@ -885,15 +887,21 @@ export default function AdminPage() {
     const [selectedMatching, setSelectedMatching] = useState<MatchingResponse | null>(null);
 
     // ── 유저 목록 fetch ──────────────────────
-    const fetchUsers = useCallback(async () => {
+    const fetchUsers = useCallback(async (overrideFilters?: AdvancedFilterValues) => {
         setLoadingUsers(true);
         try {
-            const data = await listUsers({});
+            const filters = overrideFilters ?? advancedFilters;
+            const data = await listUsers({ ...filters });
             setUsers(data);
         } finally {
             setLoadingUsers(false);
         }
-    }, []);
+    }, [advancedFilters]);
+
+    const handleApplyAdvancedFilters = useCallback((filters: AdvancedFilterValues) => {
+        setAdvancedFilters(filters);
+        fetchUsers(filters);
+    }, [fetchUsers]);
 
     const fetchMatchings = useCallback(async () => {
         setLoadingMatchings(true);
@@ -1447,9 +1455,13 @@ export default function AdminPage() {
                                     <option value="NON_SMOKER">비흡연</option>
                                     <option value="SMOKER">흡연</option>
                                 </select>
-                                <Button size="sm" variant="outline" onClick={fetchUsers} disabled={loadingUsers}>
+                                <Button size="sm" variant="outline" onClick={() => fetchUsers()} disabled={loadingUsers}>
                                     {loadingUsers ? "로딩 중..." : "새로고침"}
                                 </Button>
+                                <AdvancedFilterPanel
+                                    onApply={handleApplyAdvancedFilters}
+                                    activeCount={Object.keys(advancedFilters).length}
+                                />
                                 <span className="text-slate-400 text-sm">{filteredUsers.length}명</span>
                             </div>
 

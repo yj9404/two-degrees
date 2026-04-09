@@ -161,11 +161,28 @@ export async function listUsers(params?: {
     gender?: string;
     is_active?: boolean;
     smoking_status?: string;
+    // 고급 필터
+    mbti_includes?: string;
+    religion?: string;
+    drinking_status?: string;
+    min_height?: number;
+    max_height?: number;
+    child_plan?: string;
+    marriage_intent?: string;
+    ref_age?: number;
 }): Promise<UserReadAdmin[]> {
     const qs = new URLSearchParams();
     if (params?.gender) qs.set("gender", params.gender);
     if (params?.is_active !== undefined) qs.set("is_active", String(params.is_active));
     if (params?.smoking_status) qs.set("smoking_status", params.smoking_status);
+    if (params?.mbti_includes) qs.set("mbti_includes", params.mbti_includes);
+    if (params?.religion) qs.set("religion", params.religion);
+    if (params?.drinking_status) qs.set("drinking_status", params.drinking_status);
+    if (params?.min_height !== undefined) qs.set("min_height", String(params.min_height));
+    if (params?.max_height !== undefined) qs.set("max_height", String(params.max_height));
+    if (params?.child_plan) qs.set("child_plan", params.child_plan);
+    if (params?.marriage_intent) qs.set("marriage_intent", params.marriage_intent);
+    if (params?.ref_age !== undefined) qs.set("ref_age", String(params.ref_age));
     const query = qs.toString() ? `?${qs}` : "";
     return apiFetch(`/api/users${query}`, { method: "GET" });
 }

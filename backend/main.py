@@ -369,6 +369,25 @@ def list_users(
     active_area: Optional[str] = Query(None, description="주 활동 지역 (부분 일치)"),
     is_active: Optional[bool] = Query(None, description="매칭 풀 활성 여부 필터"),
     smoking_status: Optional[str] = Query(None, description="흡연 여부 필터 (SMOKER | NON_SMOKER)"),
+    # ── 고급 필터 ──────────────────────────────────────────────────────────────
+    # models.py 컬럼 타입 가정:
+    #   mbti          → String(4)   예: "ENFP"
+    #   religion      → String(50)  예: "기독교"
+    #   drinking_status → Enum(DrinkingStatus)
+    #   height        → Integer     단위: cm
+    #   child_plan    → Enum(ChildPlan)
+    #   marriage_intent → Enum(MarriageIntent)
+    #   birth_year    → Integer     예: 1997
+    #   age_gap_older → Integer     연상 허용 최대 나이차
+    #   age_gap_younger → Integer   연하 허용 최대 나이차
+    mbti_includes: Optional[str] = Query(None, description="MBTI 포함 문자 (쉼표 구분, 예: E,N,F) — 모두 포함하는 유저 검색"),
+    religion: Optional[str] = Query(None, description="종교 (무교|기독교|불교|천주교|그외)"),
+    drinking_status: Optional[str] = Query(None, description="음주 여부 (NON_DRINKER|SOCIAL_DRINKER|DRINKER)"),
+    min_height: Optional[int] = Query(None, ge=100, le=250, description="최소 키 (cm)"),
+    max_height: Optional[int] = Query(None, ge=100, le=250, description="최대 키 (cm)"),
+    child_plan: Optional[str] = Query(None, description="자녀 계획 (WANT|OPEN|NOT_NOW|DINK)"),
+    marriage_intent: Optional[str] = Query(None, description="결혼 의향 (WILLING|OPEN|NOT_NOW|NON_MARRIAGE)"),
+    ref_age: Optional[int] = Query(None, ge=18, le=70, description="교차 검증 기준 나이 — 이 나이를 희망 파트너 범위에 포함하는 유저 검색"),
     db: Session = Depends(get_db),
     _admin: str = Depends(verify_admin),
 ):
@@ -380,7 +399,16 @@ def list_users(
     - **active_area**: 부분 문자열 일치 검색 (예: \"강남\" → \"서울 강남구\" 매칭)
     - **is_active**: true이면 매칭 풀에 활성화된 유저만 조회
     - **smoking_status**: SMOKER 또는 NON_SMOKER
+    - **mbti_includes**: 쉼표로 구분된 MBTI 글자 — 해당 글자를 모두 포함하는 MBTI 유저 검색
+    - **religion**: 종교 필터. \"그외\"는 무교/기독교/불교/천주교를 제외한 나머지
+    - **drinking_status**: NON_DRINKER | SOCIAL_DRINKER | DRINKER
+    - **min_height / max_height**: 키 범위 (cm)
+    - **child_plan**: WANT | OPEN | NOT_NOW | DINK
+    - **marriage_intent**: WILLING | OPEN | NOT_NOW | NON_MARRIAGE
+    - **ref_age**: 교차 검증 기준 나이. 이 나이가 유저의 희망 파트너 나이 범위에 포함되는지 확인
     """
+    from models import SmokingStatus, DrinkingStatus, ChildPlan, MarriageIntent
+
     if birth_year_min and birth_year_max and birth_year_min > birth_year_max:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -389,6 +417,7 @@ def list_users(
 
     query = db.query(User)
 
+    # ── 기존 필터 ────────────────────────────────────────────────────────────
     if gender is not None:
         query = query.filter(User.gender == gender)
     if birth_year_min is not None:
@@ -400,12 +429,73 @@ def list_users(
     if is_active is not None:
         query = query.filter(User.is_active == is_active)
     if smoking_status is not None:
-        from models import SmokingStatus
         try:
-            enum_status = SmokingStatus(smoking_status)
-            query = query.filter(User.smoking_status == enum_status)
+            query = query.filter(User.smoking_status == SmokingStatus(smoking_status))
         except ValueError:
-            pass # Invalid smoking_status ignores instead of failing
+            pass
+
+    # ── 고급 필터 ────────────────────────────────────────────────────────────
+
+    # MBTI: 쉼표로 구분된 글자를 모두 포함해야 함 (예: "E,N" → ENFP, ENTJ 등)
+    if mbti_includes:
+        letters = [l.strip().upper() for l in mbti_includes.split(",") if l.strip()]
+        for letter in letters:
+            query = query.filter(User.mbti.ilike(f"%{letter}%"))
+
+    # 종교: "그외"는 알려진 4개 종교를 제외한 나머지
+    if religion:
+        _KNOWN_RELIGIONS = ["무교", "기독교", "불교", "천주교"]
+        if religion == "그외":
+            query = query.filter(User.religion.isnot(None))
+            query = query.filter(User.religion != "")
+            query = query.filter(User.religion.notin_(_KNOWN_RELIGIONS))
+        else:
+            query = query.filter(User.religion == religion)
+
+    # 음주 여부
+    if drinking_status:
+        try:
+            query = query.filter(User.drinking_status == DrinkingStatus(drinking_status))
+        except ValueError:
+            pass
+
+    # 키 범위
+    if min_height is not None:
+        query = query.filter(User.height >= min_height)
+    if max_height is not None:
+        query = query.filter(User.height <= max_height)
+
+    # 자녀 계획
+    if child_plan:
+        try:
+            query = query.filter(User.child_plan == ChildPlan(child_plan))
+        except ValueError:
+            pass
+
+    # 결혼 의향
+    if marriage_intent:
+        try:
+            query = query.filter(User.marriage_intent == MarriageIntent(marriage_intent))
+        except ValueError:
+            pass
+
+    # 선호 연령대 교차 검증 (핵심 로직)
+    # ref_age: 검색 기준이 되는 나이 (예: 27세)
+    # 유저의 한국 나이 = CURRENT_YEAR - birth_year + 1
+    # 유저가 허용하는 파트너 나이 범위:
+    #   최소 = 유저 나이 - age_gap_older  (연상 허용: 파트너가 유저보다 age_gap_older만큼 나이 많아도 됨)
+    #   최대 = 유저 나이 + age_gap_younger (연하 허용: 파트너가 유저보다 age_gap_younger만큼 어려도 됨)
+    # NULL 처리: age_gap이 NULL이면 0으로 간주 (해당 방향 나이차 허용 없음)
+    if ref_age is not None:
+        _CURRENT_YEAR = 2026
+        user_age_expr = _CURRENT_YEAR - User.birth_year + 1
+        gap_older = func.coalesce(User.age_gap_older, 0)    # 유저가 허용하는 연상 나이차
+        gap_younger = func.coalesce(User.age_gap_younger, 0)  # 유저가 허용하는 연하 나이차
+        # ref_age가 [user_age - gap_older, user_age + gap_younger] 범위 안에 있어야 함
+        query = query.filter(
+            (user_age_expr - gap_older) <= ref_age,
+            (user_age_expr + gap_younger) >= ref_age,
+        )
 
     users = query.all()
 
