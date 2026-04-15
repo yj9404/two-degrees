@@ -2047,7 +2047,11 @@ export default function AdminPage() {
                                                         }}
                                                     >
                                                         <p className={`text-sm font-bold text-slate-900 ${candidateUser ? "group-hover/cand:text-indigo-600 underline decoration-dotted underline-offset-2 transition-colors" : ""}`}>
-                                                            {candidateUser ? `${candidateUser.name} (${candidateUser.birth_year}년생)` : candidateId.slice(0, 8) + "…"}
+                                                            {candidateUser
+                                                                ? `${candidateUser.name} (${candidateUser.birth_year}년생)`
+                                                                : data.name
+                                                                    ? `${data.name} (${data.birth_year}년생)`
+                                                                    : candidateId.slice(0, 8) + "…"}
                                                         </p>
                                                         {candidateUser && (
                                                             <p className="text-[10px] text-slate-400">{candidateUser.job} · <span className="text-indigo-400">클릭하여 비교</span></p>

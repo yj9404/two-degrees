@@ -962,10 +962,17 @@ def ai_recommend_matchings(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러가 발생했습니다: {str(e)}")
 
+        new_cand_map = {c.id: c for c in new_candidates}
         for rec in raw_recs:
             try:
                 parsed = AIRecommendResult(**rec)
-                new_api_results[parsed.candidate_id] = {"score": parsed.score, "reason": parsed.reason}
+                cand = new_cand_map.get(parsed.candidate_id)
+                new_api_results[parsed.candidate_id] = {
+                    "score": parsed.score,
+                    "reason": parsed.reason,
+                    "name": cand.name if cand else None,
+                    "birth_year": cand.birth_year if cand else None,
+                }
             except Exception:
                 pass
 
@@ -1166,11 +1173,18 @@ def ai_batch_recommend_matchings(
         candidate_id_set = {c.id for c in valid_candidates}
         new_api_results: dict[str, dict] = {}
 
+        new_cand_map = {c.id: c for c in new_candidates}
         if tid in ai_call_results:
             for rec in ai_call_results[tid]:
                 try:
                     parsed = AIRecommendResult(**rec)
-                    new_api_results[parsed.candidate_id] = {"score": parsed.score, "reason": parsed.reason}
+                    cand = new_cand_map.get(parsed.candidate_id)
+                    new_api_results[parsed.candidate_id] = {
+                        "score": parsed.score,
+                        "reason": parsed.reason,
+                        "name": cand.name if cand else None,
+                        "birth_year": cand.birth_year if cand else None,
+                    }
                 except Exception:
                     pass
 
