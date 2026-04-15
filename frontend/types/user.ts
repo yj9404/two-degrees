@@ -202,8 +202,8 @@ export interface DailyMatchingStatsResponse {
 export interface AIRecommendHistoryRead {
     id: string;
     target_user_id: string;
-    /** { candidate_id: { score: number; reason: string } } */
-    candidate_results: Record<string, { score: number; reason: string }>;
+    /** { candidate_id: { score: number; reason: string; name?: string | null; birth_year?: number | null } } */
+    candidate_results: Record<string, { score: number; reason: string; name?: string | null; birth_year?: number | null }>;
     created_at: string;
     target_user_name?: string;
 }
