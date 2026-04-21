@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
-import { getSharedProfile, respondSharedMatching } from "@/lib/api";
+import { getSharedProfile, respondSharedMatching, agreePenaltyPolicy } from "@/lib/api";
 import { SharedProfileRead, MatchStatus } from "@/types/user";
 import {
     AlertDialog,
@@ -54,6 +54,12 @@ export default function SharedProfilePage() {
     const [timeLeft, setTimeLeft] = useState<string>("");
     const [activePhotoIndex, setActivePhotoIndex] = useState(0);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // 페널티 정책 동의 모달 상태
+    const [showPolicyModal, setShowPolicyModal] = useState(false);
+    const [policyScrolled, setPolicyScrolled] = useState(false);
+    const [policyAgreeing, setPolicyAgreeing] = useState(false);
+    const policyContentRef = useRef<HTMLDivElement>(null);
 
     const [isScrolling, setIsScrolling] = useState(false);
     const touchStartX = useRef(0);
@@ -135,7 +141,13 @@ export default function SharedProfilePage() {
     useEffect(() => {
         if (token) {
             getSharedProfile(token)
-                .then(setProfile)
+                .then((data) => {
+                    setProfile(data);
+                    // 정책 미동의 유저에게만 모달 노출
+                    if (!data.has_agreed_penalty_policy) {
+                        setShowPolicyModal(true);
+                    }
+                })
                 .catch((err) => setError(err.message))
                 .finally(() => setLoading(false));
         }
@@ -253,6 +265,131 @@ export default function SharedProfilePage() {
             className="min-h-screen bg-slate-50 select-none pb-24"
             onContextMenu={(e) => e.preventDefault()}
         >
+            {/* ── 페널티 정책 동의 모달 ── */}
+            {showPolicyModal && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+                    {/* 딤 배경 – 클릭해도 닫히지 않음 */}
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="relative w-full max-w-md mx-auto bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
+                        {/* 헤더 */}
+                        <div className="px-5 pt-5 pb-3 border-b border-slate-100">
+                            <h2 className="text-base font-bold text-slate-900 leading-snug">
+                                🚨 [필독] TwoDegrees 매칭 페널티 제도 안내
+                            </h2>
+                            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                                소중한 매칭 프로필을 확인하시기 전에, 원활한 매칭을 위한 새로운 이용 규칙을 안내해 드립니다.
+                            </p>
+                        </div>
+
+                        {/* 본문 – 스크롤 가능 */}
+                        <div
+                            ref={policyContentRef}
+                            className="flex-1 overflow-y-auto px-5 py-4 text-sm text-slate-700 leading-relaxed space-y-3"
+                            onScroll={() => {
+                                const el = policyContentRef.current;
+                                if (!el) return;
+                                // 스크롤이 바닥에 거의 닿으면(10px 여유) 활성화
+                                if (el.scrollHeight - el.scrollTop - el.clientHeight < 10) {
+                                    setPolicyScrolled(true);
+                                }
+                            }}
+                        >
+                            <p>안녕하세요, TwoDegrees 관리자입니다.</p>
+                            <p>
+                                TwoDegrees는 지인 네트워크를 기반으로 운영되는 전면 무료 매칭 서비스입니다.
+                                한 분 한 분 신중하게 고민하여 매칭을 보내드리고 있으나, 잦은 거절과 무응답으로 인해
+                                진지하게 인연을 기다리시는 분들의 피로도가 함께 높아지고 있습니다.
+                            </p>
+                            <p>
+                                이에 따라 매칭 생태계를 건강하게 유지하기 위해{" "}
+                                <strong>5월 1일부터 매칭 페널티 제도를 도입합니다.</strong>
+                            </p>
+
+                            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-2">
+                                <p className="font-semibold text-slate-800">[페널티 부과 기준]</p>
+                                <ul className="space-y-1 pl-1">
+                                    <li>• 매칭 거절: <strong>1점</strong></li>
+                                    <li>• 무응답 (24시간 내 미확인/미선택): <strong>1.5점</strong></li>
+                                </ul>
+                            </div>
+
+                            <div className="rounded-xl bg-red-50 border border-red-100 p-4 space-y-2">
+                                <p className="font-semibold text-red-700">이용 제한 (14일 매칭 정지)</p>
+                                <p className="text-sm text-red-600">
+                                    누적 점수 3점 이상 도달 시, 그 시점으로부터 14일간 매칭이 중단됩니다.
+                                </p>
+                                <p className="text-sm text-slate-600">
+                                    점수 초기화: 누적 점수가 3점 미만인 경우, 매월 1일에 0점으로 일괄 초기화됩니다.
+                                    (단, 이미 14일 정지 상태인 분들은 정지 해제 이후 0점으로 초기화됩니다.)
+                                </p>
+                            </div>
+
+                            <p className="text-slate-500 text-xs">위 제도의 점수/일수 제한은 상황에 따라 유동적으로 변경될 수 있습니다.</p>
+
+                            <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 space-y-2">
+                                <p className="font-semibold text-blue-800">[안내 사항]</p>
+                                <p>
+                                    한정된 매칭 풀로 인해, 여러분이 설정하신 '선호/기피 조건'을 100% 완벽하게
+                                    걸러내지 못하는 경우가 발생할 수 있습니다.
+                                </p>
+                                <p>
+                                    저 역시 더 나은 매칭을 위해 노력하고 있지만, 무료 운영 시스템의 특성상 모든 조건을
+                                    충족시키지 못할 수 있는 점 너그러운 양해 부탁드립니다. 다만 지인 네트워크를 통해
+                                    신원이 확인된 분들인 만큼, 너무 부담 갖지 마시고 가벼운 마음으로 대화를 시작해
+                                    보시길 권해 드립니다.
+                                </p>
+                            </div>
+
+                            <p>
+                                TwoDegrees는 모두가 기분 좋게 이용할 수 있는 서비스를 지향합니다.
+                                이 제도는 누군가를 제재하기 위함이 아니라, 매칭에 진심인 분들을 보호하기 위한
+                                최소한의 장치임을 양해해 주시기 바랍니다.
+                            </p>
+                            <p className="font-medium">감사합니다.</p>
+                            {/* 스크롤 유도 패딩 */}
+                            <div className="h-4" />
+                        </div>
+
+                        {/* 푸터 */}
+                        <div className="px-5 py-4 border-t border-slate-100 bg-white">
+                            {!policyScrolled && (
+                                <p className="text-center text-xs text-slate-400 mb-3">
+                                    ↓ 아래로 스크롤하여 내용을 확인해 주세요
+                                </p>
+                            )}
+                            <button
+                                disabled={!policyScrolled || policyAgreeing}
+                                onClick={async () => {
+                                    if (!profile?.current_user_id) return;
+                                    setPolicyAgreeing(true);
+                                    try {
+                                        await agreePenaltyPolicy(profile.current_user_id);
+                                        setShowPolicyModal(false);
+                                    } catch {
+                                        alert("동의 처리 중 오류가 발생했습니다. 다시 시도해 주세요.");
+                                    } finally {
+                                        setPolicyAgreeing(false);
+                                    }
+                                }}
+                                className={`w-full h-12 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                                    policyScrolled && !policyAgreeing
+                                        ? "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800"
+                                        : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                                }`}
+                            >
+                                {policyAgreeing ? (
+                                    <>
+                                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        처리 중...
+                                    </>
+                                ) : (
+                                    "확인 및 동의합니다"
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm flex flex-col">
                 {/* Expiration Banner */}
                 {profile.expires_at && (

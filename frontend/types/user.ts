@@ -180,6 +180,10 @@ export interface SharedProfileRead {
     ai_reason?: string;
     photo_urls: string[];
     expires_at?: string;
+    /** 토큰 소유자(현재 유저) ID – 정책 동의 API 호출에 사용 */
+    current_user_id: string;
+    /** 현재 유저의 페널티 정책 동의 여부 */
+    has_agreed_penalty_policy: boolean;
 }
 
 /** 매칭 응담 요청 */

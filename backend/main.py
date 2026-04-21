@@ -1444,6 +1444,10 @@ def get_shared_profile(token: str, db: Session = Depends(get_db)):
     if not other_user:
         raise HTTPException(status_code=404, detail="상대방 정보를 찾을 수 없습니다.")
 
+    # 현재 유저(토큰 소유자) 조회 – 정책 동의 상태 확인용
+    current_user_id = matching.user_a_id if is_user_a else matching.user_b_id
+    current_user = db.query(User).filter(User.id == current_user_id).first()
+
     # 2026년 기준 나이 계산
     age = 2026 - other_user.birth_year
 
@@ -1463,8 +1467,35 @@ def get_shared_profile(token: str, db: Session = Depends(get_db)):
         hobbies=other_user.hobbies,
         ai_reason=matching.ai_reason,
         photo_urls=other_user.photo_urls or [],
-        expires_at=matching.expires_at
+        expires_at=matching.expires_at,
+        current_user_id=current_user_id,
+        has_agreed_penalty_policy=getattr(current_user, "has_agreed_penalty_policy", False) or False,
     )
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/users/{user_id}/agree-policy – 페널티 정책 동의 처리
+# ---------------------------------------------------------------------------
+
+@app.patch(
+    "/api/users/{user_id}/agree-policy",
+    summary="페널티 정책 동의 처리",
+    tags=["users"],
+)
+def agree_penalty_policy(user_id: str, db: Session = Depends(get_db)):
+    """
+    유저가 매칭 페널티 정책에 동의했음을 기록합니다.
+    has_agreed_penalty_policy를 True로 업데이트합니다.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 유저를 찾을 수 없습니다.",
+        )
+    user.has_agreed_penalty_policy = True
+    db.commit()
+    return {"message": "정책 동의가 완료되었습니다."}
 
 
 @app.post(

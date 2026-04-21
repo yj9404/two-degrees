@@ -123,6 +123,11 @@ class User(Base):
         Enum(ChildPlan), nullable=True, default=ChildPlan.UNKNOWN
     )  # 자녀 계획
 
+    # ── 정책 동의 여부 ───────────────────────────────────────────────────────
+    has_agreed_penalty_policy = Column(
+        Boolean, nullable=False, default=False
+    )  # 매칭 페널티 정책 동의 여부 (최초 1회 필수)
+
     def __repr__(self) -> str:
         return f"<User id={self.id!r} name={self.name!r} gender={self.gender}>"
 

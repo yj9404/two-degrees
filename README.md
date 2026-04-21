@@ -42,6 +42,7 @@ cp .env.example .env
 
 # 4. 앱 실행
 uvicorn main:app --reload --port 8000
+.venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
 ```
 - API 서버: `http://localhost:8000`
 - Swagger API 문서: `http://localhost:8000/docs`

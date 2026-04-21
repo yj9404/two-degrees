@@ -258,6 +258,9 @@ class SharedProfileRead(BaseModel):
     ai_reason: Optional[str] = None
     photo_urls: List[str] = Field(default_factory=list)
     expires_at: Optional[datetime] = None
+    # 현재 유저(토큰 소유자) 정보 – 정책 동의 모달 처리용
+    current_user_id: str
+    has_agreed_penalty_policy: bool = False
 
 
 class MatchRespondRequest(BaseModel):

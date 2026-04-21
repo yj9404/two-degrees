@@ -335,6 +335,13 @@ export async function respondSharedMatching(
     });
 }
 
+/** PATCH /api/users/{user_id}/agree-policy – 페널티 정책 동의 처리 */
+export async function agreePenaltyPolicy(userId: string): Promise<{ message: string }> {
+    return apiFetch(`/api/users/${userId}/agree-policy`, {
+        method: "PATCH",
+    });
+}
+
 /** ──────────────────────────────────────────────────────────── 
  * NOTICE (공지사항) API
  * ──────────────────────────────────────────────────────────── */
