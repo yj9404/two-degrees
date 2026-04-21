@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { getDailyMatchingStats } from "@/lib/api";
 import type { DailyMatchingStats } from "@/types/user";
 import { Heart, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
+const PAGE_SIZE = 10;
+
 export default function MatchingStatusPage() {
     const [stats, setStats] = useState<DailyMatchingStats[]>([]);
     const [loading, setLoading] = useState(true);
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const sentinelRef = useRef<HTMLDivElement>(null);
+    const loadingMoreRef = useRef(false);
 
     useEffect(() => {
         getDailyMatchingStats()
@@ -20,6 +26,42 @@ export default function MatchingStatusPage() {
                 setLoading(false);
             });
     }, []);
+
+    const loadMore = useCallback((totalCount: number) => {
+        if (loadingMoreRef.current) return;
+        loadingMoreRef.current = true;
+        setLoadingMore(true);
+        setTimeout(() => {
+            setVisibleCount((c) => Math.min(c + PAGE_SIZE, totalCount));
+            setLoadingMore(false);
+            loadingMoreRef.current = false;
+        }, 400);
+    }, []);
+
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel || loading) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setVisibleCount((current) => {
+                        if (current < stats.length) {
+                            loadMore(stats.length);
+                        }
+                        return current;
+                    });
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [loading, stats.length, loadMore]);
+
+    const visibleStats = stats.slice(0, visibleCount);
+    const hasMore = visibleCount < stats.length;
 
     return (
         <main className="min-h-[100dvh] py-12 px-6">
@@ -40,7 +82,7 @@ export default function MatchingStatusPage() {
                     </div>
                 ) : stats.length > 0 ? (
                     <div className="flex flex-col items-center gap-3">
-                        {stats.map((item) => (
+                        {visibleStats.map((item) => (
                             <Card key={item.date} className="w-full max-w-[280px] border-0 shadow-sm bg-pink-50/50 overflow-hidden group hover:shadow-md transition-all hover:-translate-y-0.5">
                                 <CardContent className="py-2 px-4 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -61,6 +103,19 @@ export default function MatchingStatusPage() {
                                 </CardContent>
                             </Card>
                         ))}
+
+                        {/* 무한 스크롤 sentinel */}
+                        {hasMore && <div ref={sentinelRef} className="w-full h-2" />}
+
+                        {loadingMore && (
+                            <div className="flex justify-center py-4">
+                                <div className="w-5 h-5 border-2 border-pink-400 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        )}
+
+                        {!hasMore && stats.length > PAGE_SIZE && (
+                            <p className="text-slate-400 text-xs py-2">모든 기록을 불러왔습니다.</p>
+                        )}
                     </div>
                 ) : (
                     <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">

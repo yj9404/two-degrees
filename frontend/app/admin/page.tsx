@@ -855,6 +855,10 @@ export default function AdminPage() {
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [creatingMatch, setCreatingMatch] = useState(false);
     const [filterMatchStatus, setFilterMatchStatus] = useState<"" | MatchStatus>("");
+    const [visibleMatchingsCount, setVisibleMatchingsCount] = useState(10);
+    const [loadingMoreMatchings, setLoadingMoreMatchings] = useState(false);
+    const matchingsSentinelRef = useRef<HTMLDivElement>(null);
+    const loadingMoreMatchingsRef = useRef(false);
 
     // 공지사항 관련 상태
     const [notices, setNotices] = useState<Notice[]>([]);
@@ -919,6 +923,7 @@ export default function AdminPage() {
 
     const fetchMatchings = useCallback(async () => {
         setLoadingMatchings(true);
+        setVisibleMatchingsCount(10);
         try {
             const data = await listMatchings(filterMatchStatus || undefined);
             setMatchings(data);
@@ -961,6 +966,34 @@ export default function AdminPage() {
             fetchAiHistory();
         }
     }, [authed, fetchUsers, fetchMatchings, fetchNotices, fetchAiHistory]);
+
+    // ── 매칭 무한 스크롤 ───────────────────────
+    useEffect(() => {
+        const sentinel = matchingsSentinelRef.current;
+        if (!sentinel || loadingMatchings) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && !loadingMoreMatchingsRef.current) {
+                    setVisibleMatchingsCount((current) => {
+                        if (current >= matchings.length) return current;
+                        loadingMoreMatchingsRef.current = true;
+                        setLoadingMoreMatchings(true);
+                        setTimeout(() => {
+                            setVisibleMatchingsCount((c) => Math.min(c + 10, matchings.length));
+                            setLoadingMoreMatchings(false);
+                            loadingMoreMatchingsRef.current = false;
+                        }, 400);
+                        return current;
+                    });
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [loadingMatchings, matchings.length]);
 
     // ── 공지사항 관련 함수 ─────────────────────
     const handleCreateNotice = async (e: React.FormEvent) => {
@@ -1594,11 +1627,15 @@ export default function AdminPage() {
                             </Button>
                         </div>
 
-                        {matchings.length === 0 && !loadingMatchings ? (
+                        {loadingMatchings ? (
+                            <div className="flex justify-center py-16">
+                                <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        ) : matchings.length === 0 ? (
                             <p className="text-center text-slate-400 py-16">등록된 매칭이 없습니다.</p>
                         ) : (
                             <div className="space-y-4">
-                                {matchings.map((match) => (
+                                {matchings.slice(0, visibleMatchingsCount).map((match) => (
                                     <Card
                                         key={match.id}
                                         className="shadow-sm border-slate-200 overflow-hidden hover:border-blue-300 transition-colors"
@@ -1711,6 +1748,21 @@ export default function AdminPage() {
                                         </CardContent>
                                     </Card>
                                 ))}
+
+                                {/* 무한 스크롤 sentinel */}
+                                {visibleMatchingsCount < matchings.length && (
+                                    <div ref={matchingsSentinelRef} className="w-full h-2" />
+                                )}
+
+                                {loadingMoreMatchings && (
+                                    <div className="flex justify-center py-4">
+                                        <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                )}
+
+                                {!loadingMoreMatchings && visibleMatchingsCount >= matchings.length && matchings.length > 10 && (
+                                    <p className="text-center text-slate-400 text-xs py-2">모든 매칭을 불러왔습니다.</p>
+                                )}
                             </div>
                         )}
                     </div>
