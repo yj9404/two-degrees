@@ -170,6 +170,8 @@ export async function listUsers(params?: {
     child_plan?: string;
     marriage_intent?: string;
     ref_age?: number;
+    min_age?: number;
+    max_age?: number;
 }): Promise<UserReadAdmin[]> {
     const qs = new URLSearchParams();
     if (params?.gender) qs.set("gender", params.gender);
@@ -183,6 +185,16 @@ export async function listUsers(params?: {
     if (params?.child_plan) qs.set("child_plan", params.child_plan);
     if (params?.marriage_intent) qs.set("marriage_intent", params.marriage_intent);
     if (params?.ref_age !== undefined) qs.set("ref_age", String(params.ref_age));
+    
+    // 나이 필터를 출생연도 필터로 변환 (한국 나이 기준: 올해 + 1 - 나이)
+    // 현재 백엔드가 2026년을 기준으로 계산하므로, 2027에서 빼는 방식으로 처리
+    if (params?.min_age !== undefined) {
+        qs.set("birth_year_max", String(new Date().getFullYear() + 1 - params.min_age));
+    }
+    if (params?.max_age !== undefined) {
+        qs.set("birth_year_min", String(new Date().getFullYear() + 1 - params.max_age));
+    }
+    
     const query = qs.toString() ? `?${qs}` : "";
     return apiFetch(`/api/users${query}`, { method: "GET" });
 }
