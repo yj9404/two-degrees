@@ -125,7 +125,7 @@ class User(Base):
 
     # ── 정책 동의 여부 ───────────────────────────────────────────────────────
     has_agreed_penalty_policy = Column(
-        Boolean, nullable=False, default=False
+        Boolean, nullable=False, default=True
     )  # 매칭 페널티 정책 동의 여부 (최초 1회 필수)
 
     def __repr__(self) -> str:

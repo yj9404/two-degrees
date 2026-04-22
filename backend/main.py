@@ -170,6 +170,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     data = payload.model_dump(exclude={"password"})
     data["password_hash"] = hash_password(payload.password)
     data["is_active"] = True
+    data["has_agreed_penalty_policy"] = True
 
     new_user = User(**data)
     db.add(new_user)
