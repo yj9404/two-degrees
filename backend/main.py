@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 import bcrypt
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date
+from sqlalchemy import func, cast, Date, or_
 
 from database import Base, engine, get_db
 from models import Gender, User, Matching, MatchStatus, Notice, AiRecommendHistory, AiBatchRecommendHistory
@@ -38,6 +38,7 @@ from schemas import (
     NoticeCreate,
     NoticeRead,
     NoticeUpdate,
+    PenaltyUpdate,
     PresignedUrlResponse,
     SharedProfileRead,
     UserCreate,
@@ -75,6 +76,52 @@ app.add_middleware(
 
 # DB 테이블이 없으면 자동 생성
 Base.metadata.create_all(bind=engine)
+
+# ---------------------------------------------------------------------------
+# 페널티 스케줄러 (APScheduler) – 매월 1일 0시 penalty_points 초기화
+# ---------------------------------------------------------------------------
+
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.cron import CronTrigger
+
+    def _reset_monthly_penalty_points():
+        """
+        매월 1일 0시에 실행.
+        - 정지 중이 아닌 유저: penalty_points를 즉시 0으로 초기화.
+        - 정지 중인 유저: 이미 정지가 끝난 경우(penalty_until <= now)에만 0으로 초기화.
+          아직 정지 중이면 이번 달은 초기화하지 않고, 정지 해제 후 다음 판단 시점에 처리.
+        """
+        from database import SessionLocal
+        db = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc)
+
+            # Case 1: 정지 중이 아닌 유저 (penalty_until IS NULL OR penalty_until <= now)
+            db.query(User).filter(
+                or_(User.penalty_until.is_(None), User.penalty_until <= now)
+            ).update({"penalty_points": 0.0}, synchronize_session=False)
+
+            # Case 2: 아직 정지 중인 유저는 건드리지 않음 (penalty_until > now)
+            # -> penalty_until이 지나면 contact-shared 엔드포인트에서 penalty_points가
+            #    이미 초기화되어야 하지 않으므로, 별도 주기 job에서 처리.
+            # 여기서는 월 초기화 시점에 '이미 해제된' 정지 유저만 처리한다.
+
+            db.commit()
+            logger.info("[Scheduler] Monthly penalty_points reset completed.")
+        except Exception as exc:
+            db.rollback()
+            logger.error(f"[Scheduler] Monthly penalty reset error: {exc}")
+        finally:
+            db.close()
+
+    _scheduler = BackgroundScheduler()
+    # 매월 1일 0시 (서버 로컬 시간 기준)
+    _scheduler.add_job(_reset_monthly_penalty_points, CronTrigger(day=1, hour=0, minute=0))
+    _scheduler.start()
+    logger.info("[Scheduler] Penalty reset scheduler started.")
+except ImportError:
+    logger.warning("[Scheduler] apscheduler not installed. Monthly penalty reset will not run.")
 
 # ---------------------------------------------------------------------------
 # 비밀번호 해싱 유틸 (bcrypt 직접 사용 – passlib 1.7.4 / bcrypt 4.x+ 호환 문제 우회)
@@ -915,8 +962,12 @@ def ai_recommend_matchings(
     if not valid_candidate_ids:
         return []
 
-    # 3. 유효한 후보 유저들 조회 + 추천인 동일 제외
-    candidates = db.query(User).filter(User.id.in_(valid_candidate_ids)).all()
+    # 3. 유효한 후보 유저들 조회 + 추천인 동일 제외 + 정지 유저 제외
+    now_utc = datetime.now(timezone.utc)
+    candidates = db.query(User).filter(
+        User.id.in_(valid_candidate_ids),
+        or_(User.penalty_until.is_(None), User.penalty_until <= now_utc),
+    ).all()
     if getattr(target_user, "referrer_name", None):
         candidates = [c for c in candidates if getattr(c, "referrer_name", None) != target_user.referrer_name]
     if not candidates:
@@ -1070,13 +1121,16 @@ def ai_batch_recommend_matchings(
     if not valid_targets:
         raise HTTPException(status_code=422, detail="유효한 타겟 유저가 없습니다. 모두 매칭 진행 중입니다.")
 
-    # 4. 후보 유저 목록 조회
+    # 4. 후보 유저 목록 조회 (정지 유저 제외)
+    _now_utc = datetime.now(timezone.utc)
     candidates_all = db.query(User).filter(
         User.id.in_(payload.candidate_user_ids),
         User.id.notin_(busy_user_ids),
+        or_(User.penalty_until.is_(None), User.penalty_until <= _now_utc),
     ).all()
     if not candidates_all:
         raise HTTPException(status_code=422, detail="유효한 후보 유저가 없습니다.")
+
 
     # 이미 매칭 이력이 있는 쌍 조회 (재매칭 방지)
     all_involved_ids = {t.id for t in valid_targets} | {c.id for c in candidates_all}
@@ -1342,29 +1396,67 @@ def mark_matching_contact_shared(
     _admin: str = Depends(verify_admin),
 ):
     """
-    관리자가 매칭된 유저들에게 수동으로 연락처를 전달했음을 기록합니다.
-    양쪽 유저의 상태가 모두 ACCEPTED여야만 호출 가능합니다.
+    관리자가 '메시지 전달 완료 처리(매칭종료)' 버튼을 누를 때 호출됩니다.
+    - 양측 수락 시 두 유저를 비활성화합니다.
+    - 거절·무응답 만료 유저에게 페널티를 부과하고 3.0점 이상이면 14일 정지합니다.
     """
     matching = db.query(Matching).filter(Matching.id == matching_id).first()
     if not matching:
         raise HTTPException(status_code=404, detail="매칭 정보를 찾을 수 없습니다.")
 
-    # 양측 유저 수락 시 비활성화 처리 (수동 체크 시점에 수행)
+    now = datetime.now(timezone.utc)
+
+    # 양측 수락 시 비활성화 처리
     if matching.user_a_status == MatchStatus.ACCEPTED and matching.user_b_status == MatchStatus.ACCEPTED:
-        db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).update({"is_active": False}, synchronize_session=False)
+        db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).update(
+            {"is_active": False}, synchronize_session=False
+        )
+
+    # ── 페널티 부과 ──────────────────────────────────────────────────────────
+    # 무응답 만료 여부: expires_at이 과거이고 해당 유저 상태가 PENDING
+    is_expired = (
+        matching.expires_at is not None
+        and (
+            matching.expires_at.replace(tzinfo=timezone.utc)
+            if matching.expires_at.tzinfo is None
+            else matching.expires_at
+        ) < now
+    )
+
+    penalty_targets: list[tuple[str, float]] = []  # (user_id, points)
+
+    for user_id, user_status in [
+        (matching.user_a_id, matching.user_a_status),
+        (matching.user_b_id, matching.user_b_status),
+    ]:
+        if user_status == MatchStatus.REJECTED:
+            penalty_targets.append((user_id, 1.0))   # 거절 페널티
+        elif user_status == MatchStatus.PENDING and is_expired:
+            penalty_targets.append((user_id, 1.5))   # 무응답 만료 페널티
+
+    for user_id, points in penalty_targets:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            continue
+        user.penalty_points = (user.penalty_points or 0.0) + points
+        user.total_penalty_points = (user.total_penalty_points or 0.0) + points
+
+        # 3.0점 이상 → 14일 정지 트리거
+        if user.penalty_points >= 3.0:
+            user.penalty_until = now + timedelta(days=14)
+            user.suspension_count = (user.suspension_count or 0) + 1
+            logger.info(
+                f"[Penalty] User {user_id} suspended until {user.penalty_until} "
+                f"(suspension #{user.suspension_count})"
+            )
 
     matching.is_contact_shared = True
     db.commit()
     db.refresh(matching)
-    
-    # MatchingResponse 스키마에 맞춰 user_a_info, user_b_info를 주입하기 위해 속성을 탐색합니다.
-    # (SQLAlchemy relationship이 정의되어 있지 않다면 수동으로 fetch하여 부착해야 할 수 있습니다.)
-    # models.py를 다시 확인해보면 relationship이 없습니다. main.py의 다른 list_matchings 로직을 보죠.
-    
-    # User 정보를 가져와서 Matching 객체에 임시 속성으로 부착 (MatchingResponse 매핑용)
+
     matching.user_a_info = db.query(User).filter(User.id == matching.user_a_id).first()
     matching.user_b_info = db.query(User).filter(User.id == matching.user_b_id).first()
-    
+
     return matching
 
 
@@ -1646,3 +1738,50 @@ def delete_notice(
     db.delete(notice)
     db.commit()
     return None
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/admin/users/{user_id}/penalty – 페널티 수동 수정 (관리자 전용)
+# ---------------------------------------------------------------------------
+
+@app.patch(
+    "/api/admin/users/{user_id}/penalty",
+    response_model=UserReadAdmin,
+    summary="페널티 수동 수정 (관리자)",
+    tags=["admin"],
+)
+def update_user_penalty(
+    user_id: str,
+    payload: PenaltyUpdate,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """
+    관리자가 특정 유저의 페널티 관련 필드를 수동으로 수정합니다.
+
+    - **penalty_points**: 현재 활성 페널티 점수를 강제 설정합니다.
+    - **total_penalty_points**: 누적 페널티 점수를 강제 설정합니다.
+    - **suspension_count**: 정지 처분 누적 횟수를 강제 설정합니다.
+    - **penalty_until**: 정지 해제 일시를 설정합니다. `null`을 전달하면 정지가 즉시 해제됩니다.
+
+    전달된 필드만 업데이트되며 나머지는 유지됩니다.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 유저를 찾을 수 없습니다.",
+        )
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(user, field, value)
+
+    db.commit()
+    db.refresh(user)
+
+    user.match_count = db.query(Matching).filter(
+        or_(Matching.user_a_id == user_id, Matching.user_b_id == user_id)
+    ).count()
+    return user
+
