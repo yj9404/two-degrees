@@ -539,6 +539,8 @@ function UserCard({
         ? "hover:border-blue-400"
         : "hover:border-pink-400";
 
+    const isSuspended = user.penalty_until ? new Date(user.penalty_until) > new Date() : false;
+
     return (
         <Card
             className={`shadow-sm transition-opacity cursor-pointer ${cardBgClass} ${cardBorderClass} ${user.is_active ? "" : "opacity-50"}`}
@@ -553,7 +555,7 @@ function UserCard({
                             className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             checked={selectedUserIds.includes(user.id)}
                             onChange={() => onSelect(user)}
-                            disabled={!user.is_active}
+                            disabled={!user.is_active || isSuspended}
                         />
                     </div>
 
@@ -1243,8 +1245,14 @@ export default function AdminPage() {
 
     // ── 매칭 관련 함수 ───────────────────────
     const handleSelectUser = (user: UserReadAdmin) => {
+        const isSuspended = user.penalty_until ? new Date(user.penalty_until) > new Date() : false;
+        
         if (!user.is_active) {
             alert("비활성 유저는 매칭할 수 없습니다.");
+            return;
+        }
+        if (isSuspended) {
+            alert("정지 상태인 유저는 매칭할 수 없습니다.");
             return;
         }
 
@@ -1255,12 +1263,18 @@ export default function AdminPage() {
     };
 
     const handleSelectAllMale = () => {
-        const maleIds = filteredUsers.filter((u: UserReadAdmin) => u.gender === "MALE" && u.is_active).map((u: UserReadAdmin) => u.id);
+        const maleIds = filteredUsers.filter((u: UserReadAdmin) => {
+            const isSuspended = u.penalty_until ? new Date(u.penalty_until) > new Date() : false;
+            return u.gender === "MALE" && u.is_active && !isSuspended;
+        }).map((u: UserReadAdmin) => u.id);
         setSelectedUserIds((prev: string[]) => Array.from(new Set([...prev, ...maleIds])));
     };
 
     const handleSelectAllFemale = () => {
-        const femaleIds = filteredUsers.filter((u: UserReadAdmin) => u.gender === "FEMALE" && u.is_active).map((u: UserReadAdmin) => u.id);
+        const femaleIds = filteredUsers.filter((u: UserReadAdmin) => {
+            const isSuspended = u.penalty_until ? new Date(u.penalty_until) > new Date() : false;
+            return u.gender === "FEMALE" && u.is_active && !isSuspended;
+        }).map((u: UserReadAdmin) => u.id);
         setSelectedUserIds((prev: string[]) => Array.from(new Set([...prev, ...femaleIds])));
     };
 
