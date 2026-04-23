@@ -26,6 +26,8 @@ export interface AdvancedFilterValues {
     drinking_status?: string;
     min_height?: number;
     max_height?: number;
+    min_age?: number;
+    max_age?: number;
     child_plan?: string;
     marriage_intent?: string;
 }
@@ -88,6 +90,8 @@ const INITIAL_STATE = {
     drinking_status: "",
     min_height: "",
     max_height: "",
+    min_age: "",
+    max_age: "",
     child_plan: "",
     marriage_intent: "",
 };
@@ -127,6 +131,10 @@ export default function AdvancedFilterPanel({ onApply, activeCount }: Props) {
         const maxH = parseInt(form.max_height, 10);
         if (!isNaN(minH) && minH > 0) filters.min_height = minH;
         if (!isNaN(maxH) && maxH > 0) filters.max_height = maxH;
+        const minA = parseInt(form.min_age, 10);
+        const maxA = parseInt(form.max_age, 10);
+        if (!isNaN(minA) && minA > 0) filters.min_age = minA;
+        if (!isNaN(maxA) && maxA > 0) filters.max_age = maxA;
         if (form.child_plan) filters.child_plan = form.child_plan;
         if (form.marriage_intent) filters.marriage_intent = form.marriage_intent;
 
@@ -263,6 +271,32 @@ export default function AdvancedFilterPanel({ onApply, activeCount }: Props) {
                                 className="h-9 text-sm w-24"
                             />
                             <span className="text-slate-500 text-sm">cm</span>
+                        </div>
+                    </FilterSection>
+
+                    {/* 나이 범위 */}
+                    <FilterSection label="나이 범위 (한국 나이)">
+                        <div className="flex items-center gap-2">
+                            <Input
+                                type="number"
+                                placeholder="최소"
+                                min={20}
+                                max={60}
+                                value={form.min_age}
+                                onChange={(e) => set("min_age", e.target.value)}
+                                className="h-9 text-sm w-24"
+                            />
+                            <span className="text-slate-400 text-sm">~</span>
+                            <Input
+                                type="number"
+                                placeholder="최대"
+                                min={20}
+                                max={60}
+                                value={form.max_age}
+                                onChange={(e) => set("max_age", e.target.value)}
+                                className="h-9 text-sm w-24"
+                            />
+                            <span className="text-slate-500 text-sm">세</span>
                         </div>
                     </FilterSection>
 
