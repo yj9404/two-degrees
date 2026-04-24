@@ -1,4 +1,11 @@
+import pytest
 from models import User, Matching, Gender, MatchStatus
+from database import Base, get_db
+from main import app, verify_admin
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from fastapi.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # 테스트 환경 설정 (인메모리 SQLite DB)
