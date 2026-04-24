@@ -1,6 +1,3 @@
-from models import Gender
-
-
 def test_get_user_stats_empty(client):
     """
     [User API] 데이터가 없을 때 유저 통계 계산 결과가 모두 0으로 정상 반환되는지 검증
