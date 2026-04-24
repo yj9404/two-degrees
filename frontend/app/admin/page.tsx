@@ -879,6 +879,7 @@ export default function AdminPage() {
     const [aiHistory, setAiHistory] = useState<AIRecommendHistoryRead[]>([]);
     const [loadingAiHistory, setLoadingAiHistory] = useState(false);
     const [selectedHistory, setSelectedHistory] = useState<AIRecommendHistoryRead | null>(null);
+    const [aiHistorySearch, setAiHistorySearch] = useState("");
 
     // N:M 배치 추천 관련 상태
     const [batchTargetIds, setBatchTargetIds] = useState<string[]>([]);
@@ -1869,14 +1870,52 @@ export default function AdminPage() {
                 )}
 
                 {/* --- AI 추천 이력 탭 --- */}
-                {activeTab === "AI_HISTORY" && (
+                {activeTab === "AI_HISTORY" && (() => {
+                    const filteredAiHistory = aiHistorySearch.trim()
+                        ? aiHistory.filter((hist) => {
+                              const q = aiHistorySearch.trim().toLowerCase();
+                              // 기능(추천 기준 유저) 이름 검색
+                              if ((hist.target_user_name ?? "").toLowerCase().includes(q)) return true;
+                              // 대상(후보 유저) 이름 검색 — candidate_results의 name 필드 + users 배열 fallback
+                              return Object.entries(hist.candidate_results).some(([candidateId, data]) => {
+                                  const candidateName =
+                                      data.name ??
+                                      users.find((u) => u.id === candidateId)?.name ??
+                                      "";
+                                  return candidateName.toLowerCase().includes(q);
+                              });
+                          })
+                        : aiHistory;
+                    return (
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <p className="text-slate-500 text-sm">AI 추천 매칭 이력 (전체)</p>
+                        <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    placeholder="이름으로 검색 (기능·대상 모두)"
+                                    value={aiHistorySearch}
+                                    onChange={(e) => setAiHistorySearch(e.target.value)}
+                                    className="w-full text-sm border border-slate-200 rounded-md pl-8 pr-3 py-2 bg-white text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+                                <History className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                {aiHistorySearch && (
+                                    <button
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                        onClick={() => setAiHistorySearch("")}
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
                             <Button size="sm" variant="outline" onClick={fetchAiHistory} disabled={loadingAiHistory}>
                                 {loadingAiHistory ? "로딩 중..." : "새로고침"}
                             </Button>
                         </div>
+                        {aiHistorySearch && (
+                            <p className="text-xs text-slate-500">
+                                <span className="font-semibold text-indigo-600">{filteredAiHistory.length}</span>건 검색됨
+                            </p>
+                        )}
 
                         {loadingAiHistory ? (
                             <p className="text-center text-slate-400 py-16">이력을 불러오는 중...</p>
@@ -1886,9 +1925,15 @@ export default function AdminPage() {
                                 <p className="text-sm">AI 추천 이력이 없습니다.</p>
                                 <p className="text-xs mt-1 text-slate-300">가입자 탭에서 AI 추천을 먼저 실행해 주세요.</p>
                             </div>
+                        ) : filteredAiHistory.length === 0 ? (
+                            <div className="text-center text-slate-400 py-16 bg-white rounded-xl border border-slate-100">
+                                <History className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+                                <p className="text-sm">검색 결과가 없습니다.</p>
+                                <p className="text-xs mt-1 text-slate-300">다른 이름으로 검색해 보세요.</p>
+                            </div>
                         ) : (
                             <div className="space-y-3">
-                                {aiHistory.map((hist) => {
+                                {filteredAiHistory.map((hist) => {
                                     const candidateCount = Object.keys(hist.candidate_results).length;
                                     const topScore = candidateCount > 0
                                         ? Math.max(...Object.values(hist.candidate_results).map(r => r.score))
@@ -1926,7 +1971,8 @@ export default function AdminPage() {
                             </div>
                         )}
                     </div>
-                )}
+                    );
+                })()}
 
                 {/* --- N:M 배치 AI 추천 탭 --- */}
                 {activeTab === "BATCH_AI" && (
