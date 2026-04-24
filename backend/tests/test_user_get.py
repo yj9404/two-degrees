@@ -1,3 +1,15 @@
+from main import app, verify_admin
+from fastapi.testclient import TestClient
+
+from database import Base, get_db
+
+import pytest
+
+from sqlalchemy.pool import StaticPool
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from models import User, Matching, Gender, MatchStatus
 
 # ---------------------------------------------------------------------------

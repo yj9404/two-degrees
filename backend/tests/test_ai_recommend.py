@@ -215,3 +215,76 @@ def test_ai_recommend_exclusions(client, monkeypatch, db_session):
     assert data[0]["candidate_id"] == candidate3_id
     assert data[0]["score"] == 85
     assert api_call_count == 1
+
+def test_get_ai_recommend_history(client, db_session):
+    """
+    Test the GET /api/matchings/ai-recommend/history endpoint.
+    It should return histories ordered by created_at desc, map target_user_name,
+    and correctly filter by target_user_id.
+    """
+    # 1. Create target and candidate users
+    target_id_1 = create_mock_user(client, "Target User 1", "MALE", "010-0001-0000", "Referrer A")
+    target_id_2 = create_mock_user(client, "Target User 2", "FEMALE", "010-0002-0000", "Referrer B")
+    candidate_id = create_mock_user(client, "Candidate User", "FEMALE", "010-0003-0000", "Referrer C")
+
+    # 2. Add some history records
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc)
+
+    # History 1 for Target 1 (oldest)
+    history1 = AiRecommendHistory(
+        target_user_id=target_id_1,
+        candidate_results={candidate_id: {"score": 85, "reason": "Good match"}},
+        created_at=now - timedelta(days=2)
+    )
+    db_session.add(history1)
+
+    # History 2 for Target 2 (middle)
+    history2 = AiRecommendHistory(
+        target_user_id=target_id_2,
+        candidate_results={candidate_id: {"score": 90, "reason": "Better match"}},
+        created_at=now - timedelta(days=1)
+    )
+    db_session.add(history2)
+
+    # History 3 for Target 1 (latest)
+    history3 = AiRecommendHistory(
+        target_user_id=target_id_1,
+        candidate_results={candidate_id: {"score": 95, "reason": "Best match"}},
+        created_at=now
+    )
+    db_session.add(history3)
+    db_session.commit()
+
+    # 3. Call endpoint without filter
+    response = client.get("/api/matchings/ai-recommend/history")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should return all 3 records, newest first
+    assert len(data) == 3
+    assert data[0]["id"] == history3.id
+    assert data[1]["id"] == history2.id
+    assert data[2]["id"] == history1.id
+
+    # Verify user name mapping
+    assert data[0]["target_user_name"] == "Target User 1"
+    assert data[1]["target_user_name"] == "Target User 2"
+    assert data[2]["target_user_name"] == "Target User 1"
+
+    # Verify candidate results
+    assert data[0]["candidate_results"][candidate_id]["score"] == 95
+
+    # 4. Call endpoint with target_user_id filter
+    response_filtered = client.get(f"/api/matchings/ai-recommend/history?target_user_id={target_id_1}")
+    assert response_filtered.status_code == 200
+    data_filtered = response_filtered.json()
+
+    # Should only return histories for target_id_1
+    assert len(data_filtered) == 2
+    assert data_filtered[0]["id"] == history3.id
+    assert data_filtered[1]["id"] == history1.id
+
+    # Should not return history for target_id_2
+    assert all(d["target_user_id"] == target_id_1 for d in data_filtered)
