@@ -1259,11 +1259,28 @@ def ai_batch_recommend_matchings(
         u.id: u for u in db.query(User).filter(User.id.in_(user_ids_needed)).all()
     }
     # match_count 주입 (UserReadAdmin 호환)
-    from sqlalchemy import or_ as sa_or
+    from sqlalchemy import func
+
+    match_counts_a = db.query(
+        Matching.user_a_id, func.count(Matching.id)
+    ).filter(
+        Matching.user_a_id.in_(user_ids_needed)
+    ).group_by(Matching.user_a_id).all()
+
+    match_counts_b = db.query(
+        Matching.user_b_id, func.count(Matching.id)
+    ).filter(
+        Matching.user_b_id.in_(user_ids_needed)
+    ).group_by(Matching.user_b_id).all()
+
+    counts_map = {uid: 0 for uid in user_ids_needed}
+    for uid, count in match_counts_a:
+        counts_map[uid] += count
+    for uid, count in match_counts_b:
+        counts_map[uid] += count
+
     for u in users_map.values():
-        u.match_count = db.query(Matching).filter(
-            sa_or(Matching.user_a_id == u.id, Matching.user_b_id == u.id)
-        ).count()
+        u.match_count = counts_map.get(u.id, 0)
 
     result: list[AIBatchRecommendResultItem] = []
     for pair in selected_pairs:
