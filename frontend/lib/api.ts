@@ -20,6 +20,7 @@ import type {
     SharedProfileRead,
     DailyMatchingStatsResponse,
     Notice,
+    PenaltyUpdatePayload,
 } from "@/types/user";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -388,5 +389,16 @@ export async function updateNotice(id: number, payload: { title?: string; conten
 export async function deleteNotice(id: number): Promise<void> {
     return apiFetch(`/api/notices/${id}`, {
         method: "DELETE",
+    });
+}
+
+/** PATCH /api/admin/users/{user_id}/penalty – 페널티 수동 수정 (관리자) */
+export async function updateUserPenalty(
+    userId: string,
+    payload: PenaltyUpdatePayload
+): Promise<UserReadAdmin> {
+    return apiFetch(`/api/admin/users/${userId}/penalty`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
     });
 }

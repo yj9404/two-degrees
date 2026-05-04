@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice, updateUserPenalty } from "@/lib/api";
 import AdvancedFilterPanel, { type AdvancedFilterValues } from "@/components/AdvancedFilterPanel";
 import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap } from "lucide-react";
-import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, AIBatchRecommendResultItem, Notice } from "@/types/user";
+import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, AIBatchRecommendResultItem, Notice, PenaltyUpdatePayload } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -519,6 +519,7 @@ function UserCard({
     onDetail,
     onToggleActive,
     onDelete,
+    onPenaltyEdit,
 }: {
     user: UserReadAdmin;
     selectedUserIds: string[];
@@ -526,6 +527,7 @@ function UserCard({
     onDetail: () => void;
     onToggleActive: (user: UserReadAdmin) => void;
     onDelete: () => void;
+    onPenaltyEdit?: (user: UserReadAdmin) => void;
 }) {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -536,6 +538,8 @@ function UserCard({
     const cardBorderClass = user.gender === "MALE"
         ? "hover:border-blue-400"
         : "hover:border-pink-400";
+
+    const isSuspended = user.penalty_until ? new Date(user.penalty_until) > new Date() : false;
 
     return (
         <Card
@@ -551,7 +555,7 @@ function UserCard({
                             className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             checked={selectedUserIds.includes(user.id)}
                             onChange={() => onSelect(user)}
-                            disabled={!user.is_active}
+                            disabled={!user.is_active || isSuspended}
                         />
                     </div>
 
@@ -575,13 +579,19 @@ function UserCard({
 
                     {/* 기본 정보 */}
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="text-slate-900 font-bold text-sm truncate leading-tight">
                                 {user.name}
                             </p>
                             <span className="text-[10px] text-slate-500 bg-black/5 px-1.5 py-0.5 rounded font-medium">
                                 (매칭 {user.match_count || 0}회)
                             </span>
+                            {/* 정지 배지 */}
+                            {user.penalty_until && new Date(user.penalty_until) > new Date() && (
+                                <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded font-bold">
+                                    정지
+                                </span>
+                            )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-slate-400 text-[10px] font-medium shrink-0">
@@ -592,6 +602,19 @@ function UserCard({
                                 {user.job}
                             </span>
                         </div>
+                        {/* 페널티 정보 요약 */}
+                        {((user.penalty_points ?? 0) > 0 || (user.suspension_count ?? 0) > 0) && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[9px] text-orange-500 font-medium">
+                                    페널티 {user.penalty_points ?? 0}pt
+                                </span>
+                                {(user.suspension_count ?? 0) > 0 && (
+                                    <span className="text-[9px] text-red-400 font-medium">
+                                        | 정지 {user.suspension_count}회
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* 액션 */}
@@ -611,6 +634,22 @@ function UserCard({
                             </span>
                         </div>
 
+                        {/* 페널티 수정 버튼 */}
+                        {onPenaltyEdit && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onPenaltyEdit(user);
+                                }}
+                                className="h-8 w-8 p-0 text-orange-400 hover:text-orange-600 transition-colors"
+                                title="페널티 수정"
+                            >
+                                <span className="text-base">⚑</span>
+                            </Button>
+                        )}
+
                         {/* 삭제 */}
                         <Button
                             size="sm"
@@ -627,6 +666,125 @@ function UserCard({
                 </div>
             </CardContent>
         </Card>
+    );
+}
+
+// ─────────────────────────────────────────────
+// 페널티 수동 수정 다이얼로그
+// ─────────────────────────────────────────────
+function PenaltyEditDialog({
+    user,
+    onClose,
+    onUpdated,
+}: {
+    user: UserReadAdmin | null;
+    onClose: () => void;
+    onUpdated: (updated: UserReadAdmin) => void;
+}) {
+    const [penaltyPoints, setPenaltyPoints] = useState("");
+    const [totalPenaltyPoints, setTotalPenaltyPoints] = useState("");
+    const [suspensionCount, setSuspensionCount] = useState("");
+    const [penaltyUntil, setPenaltyUntil] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (!user) return;
+        setPenaltyPoints(String(user.penalty_points ?? 0));
+        setTotalPenaltyPoints(String(user.total_penalty_points ?? 0));
+        setSuspensionCount(String(user.suspension_count ?? 0));
+        // penalty_until을 datetime-local 형식으로 변환
+        if (user.penalty_until) {
+            const d = new Date(user.penalty_until);
+            setPenaltyUntil(d.toISOString().slice(0, 16)); // "YYYY-MM-DDTHH:MM"
+        } else {
+            setPenaltyUntil("");
+        }
+    }, [user?.id]);
+
+    if (!user) return null;
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const payload: PenaltyUpdatePayload = {};
+            const pp = parseFloat(penaltyPoints);
+            const tp = parseFloat(totalPenaltyPoints);
+            const sc = parseInt(suspensionCount, 10);
+            if (!isNaN(pp)) payload.penalty_points = pp;
+            if (!isNaN(tp)) payload.total_penalty_points = tp;
+            if (!isNaN(sc)) payload.suspension_count = sc;
+            // penalty_until: 빈 문자열이면 null(정지 해제), 값이 있으면 ISO 문자열
+            payload.penalty_until = penaltyUntil ? new Date(penaltyUntil).toISOString() : null;
+
+            const updated = await updateUserPenalty(user.id, payload);
+            onUpdated(updated);
+            alert("페널티 정보가 업데이트되었습니다.");
+            onClose();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "저장 실패");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open onOpenChange={onClose}>
+            <DialogContent className="max-w-sm" aria-describedby={undefined}>
+                <DialogHeader>
+                    <DialogTitle>페널티 수동 수정 — {user.name}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                    <div className="space-y-1">
+                        <Label htmlFor="penalty-points">현재 페널티 점수</Label>
+                        <Input
+                            id="penalty-points"
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={penaltyPoints}
+                            onChange={(e) => setPenaltyPoints(e.target.value)}
+                        />
+                        <p className="text-[11px] text-slate-400">3.0pt 이상이면 정지 트리거됩니다.</p>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="total-penalty-points">누적 페널티 점수</Label>
+                        <Input
+                            id="total-penalty-points"
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={totalPenaltyPoints}
+                            onChange={(e) => setTotalPenaltyPoints(e.target.value)}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="suspension-count">정지 횟수</Label>
+                        <Input
+                            id="suspension-count"
+                            type="number"
+                            min="0"
+                            value={suspensionCount}
+                            onChange={(e) => setSuspensionCount(e.target.value)}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="penalty-until">정지 해제 일시 (비워두면 정지 해제)</Label>
+                        <Input
+                            id="penalty-until"
+                            type="datetime-local"
+                            value={penaltyUntil}
+                            onChange={(e) => setPenaltyUntil(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={onClose}>취소</Button>
+                    <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                        {saving ? "저장 중..." : "저장"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -891,6 +1049,8 @@ export default function AdminPage() {
     const [batchReasonEdits, setBatchReasonEdits] = useState<Record<number, string>>({});
 
     const [selectedMatching, setSelectedMatching] = useState<MatchingResponse | null>(null);
+    const [penaltyEditUser, setPenaltyEditUser] = useState<UserReadAdmin | null>(null);
+
 
     // ── 유저 목록 fetch ──────────────────────
     // advancedFiltersRef를 사용해 stale closure 없이 항상 최신 필터를 참조
@@ -1086,8 +1246,14 @@ export default function AdminPage() {
 
     // ── 매칭 관련 함수 ───────────────────────
     const handleSelectUser = (user: UserReadAdmin) => {
+        const isSuspended = user.penalty_until ? new Date(user.penalty_until) > new Date() : false;
+        
         if (!user.is_active) {
             alert("비활성 유저는 매칭할 수 없습니다.");
+            return;
+        }
+        if (isSuspended) {
+            alert("정지 상태인 유저는 매칭할 수 없습니다.");
             return;
         }
 
@@ -1098,12 +1264,18 @@ export default function AdminPage() {
     };
 
     const handleSelectAllMale = () => {
-        const maleIds = filteredUsers.filter((u: UserReadAdmin) => u.gender === "MALE" && u.is_active).map((u: UserReadAdmin) => u.id);
+        const maleIds = filteredUsers.filter((u: UserReadAdmin) => {
+            const isSuspended = u.penalty_until ? new Date(u.penalty_until) > new Date() : false;
+            return u.gender === "MALE" && u.is_active && !isSuspended;
+        }).map((u: UserReadAdmin) => u.id);
         setSelectedUserIds((prev: string[]) => Array.from(new Set([...prev, ...maleIds])));
     };
 
     const handleSelectAllFemale = () => {
-        const femaleIds = filteredUsers.filter((u: UserReadAdmin) => u.gender === "FEMALE" && u.is_active).map((u: UserReadAdmin) => u.id);
+        const femaleIds = filteredUsers.filter((u: UserReadAdmin) => {
+            const isSuspended = u.penalty_until ? new Date(u.penalty_until) > new Date() : false;
+            return u.gender === "FEMALE" && u.is_active && !isSuspended;
+        }).map((u: UserReadAdmin) => u.id);
         setSelectedUserIds((prev: string[]) => Array.from(new Set([...prev, ...femaleIds])));
     };
 
@@ -1571,6 +1743,7 @@ export default function AdminPage() {
                                                 onDetail={() => setSelectedUser(user)}
                                                 onToggleActive={handleToggleActive}
                                                 onDelete={() => setToDeleteId(user.id)}
+                                                onPenaltyEdit={(u) => setPenaltyEditUser(u)}
                                             />
                                         ))}
                                         {filteredUsers.filter(u => u.gender === "MALE").length === 0 && (
@@ -1597,6 +1770,7 @@ export default function AdminPage() {
                                                 onDetail={() => setSelectedUser(user)}
                                                 onToggleActive={handleToggleActive}
                                                 onDelete={() => setToDeleteId(user.id)}
+                                                onPenaltyEdit={(u) => setPenaltyEditUser(u)}
                                             />
                                         ))}
                                         {filteredUsers.filter(u => u.gender === "FEMALE").length === 0 && (
@@ -2372,6 +2546,18 @@ export default function AdminPage() {
                         </form>
                     </DialogContent>
                 </Dialog>
+            )}
+
+            {/* 페널티 수동 수정 다이얼로그 */}
+            {penaltyEditUser && (
+                <PenaltyEditDialog
+                    user={penaltyEditUser}
+                    onClose={() => setPenaltyEditUser(null)}
+                    onUpdated={(updated) => {
+                        setUsers((prev) => prev.map((u) => u.id === updated.id ? updated : u));
+                        setPenaltyEditUser(null);
+                    }}
+                />
             )}
         </main>
     );

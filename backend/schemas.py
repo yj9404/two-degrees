@@ -175,8 +175,30 @@ class UserReadAdmin(UserRead):
 
     contact: str
     match_count: int = 0
+    # 페널티 시스템
+    penalty_points: float = 0.0
+    total_penalty_points: float = 0.0
+    suspension_count: int = 0
+    penalty_until: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------------------------
+# Penalty 수동 수정 스키마 (관리자 전용)
+# ---------------------------------------------------------------------------
+
+class PenaltyUpdate(BaseModel):
+    """PATCH /api/admin/users/{user_id}/penalty 요청 바디
+
+    전달된 필드만 업데이트합니다 (exclude_unset=True).
+    penalty_points를 수동으로 0으로 낮추면 정지도 해제됩니다.
+    """
+
+    penalty_points: Optional[float] = Field(None, ge=0.0, description="현재 페널티 점수 (강제 설정)")
+    total_penalty_points: Optional[float] = Field(None, ge=0.0, description="누적 페널티 점수 (강제 설정)")
+    suspension_count: Optional[int] = Field(None, ge=0, description="정지 횟수 (강제 설정)")
+    penalty_until: Optional[datetime] = Field(None, description="정지 해제 일시 (None = 정지 해제)")
 
 
 # ---------------------------------------------------------------------------

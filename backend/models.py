@@ -13,6 +13,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     Enum,
+    Float,
     Integer,
     String,
     Text,
@@ -122,6 +123,20 @@ class User(Base):
     child_plan = Column(
         Enum(ChildPlan), nullable=True, default=ChildPlan.UNKNOWN
     )  # 자녀 계획
+
+    # ── 페널티 시스템 ─────────────────────────────────────────────────────────
+    penalty_points = Column(
+        Float, nullable=False, default=0.0
+    )  # 현재 활성 페널티 점수 (매월 초기화 대상)
+    total_penalty_points = Column(
+        Float, nullable=False, default=0.0
+    )  # 서비스 가입 이후 누적 페널티 점수 (초기화 안 됨)
+    suspension_count = Column(
+        Integer, nullable=False, default=0
+    )  # 정지 처분 누적 횟수
+    penalty_until = Column(
+        DateTime(timezone=True), nullable=True
+    )  # 정지 해제 일시 (NULL = 정지 아님)
 
     # ── 정책 동의 여부 ───────────────────────────────────────────────────────
     has_agreed_penalty_policy = Column(
