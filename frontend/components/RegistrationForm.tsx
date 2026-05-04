@@ -276,7 +276,7 @@ export default function RegistrationForm() {
                     </Field>
 
                     {/* 연락처 */}
-                    <Field label="연락처" required hint="전화번호 또는 카카오톡 ID">
+                    <Field label="연락처" required hint="전화번호 또는 카카오톡 ID. 매칭 결과 안내 및 본인 확인(프로필 수정) 용도로 사용됩니다.">
                         <Input
                             id="contact"
                             name="contact"
