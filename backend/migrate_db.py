@@ -1,6 +1,5 @@
 import os
 import secrets
-import uuid
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, inspect
 
