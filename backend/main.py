@@ -1055,7 +1055,8 @@ def ai_recommend_matchings(
         try:
             raw_recs = get_ai_recommendations(target_dict, candidates_dict_list)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러가 발생했습니다: {str(e)}")
+            logger.error(f"AI 추천 처리 중 에러가 발생했습니다: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="AI 추천 처리 중 에러가 발생했습니다.")
 
         new_cand_map = {c.id: c for c in new_candidates}
         for rec in raw_recs:
@@ -1257,7 +1258,8 @@ def ai_batch_recommend_matchings(
                 except Exception as e:
                     errors.append(str(e))
             if errors and not ai_call_results:
-                raise HTTPException(status_code=500, detail=f"AI 추천 처리 중 에러: {errors[0]}")
+                logger.error(f"배치 AI 추천 처리 중 에러: {errors}")
+                raise HTTPException(status_code=500, detail="AI 추천 처리 중 에러가 발생했습니다.")
 
     # Phase 3: 결과 처리, 캐시 업데이트, 점수 행렬 구축 (DB 작업, 순차)
     score_matrix: dict[str, dict[str, dict]] = {}
