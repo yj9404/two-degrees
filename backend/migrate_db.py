@@ -1,6 +1,5 @@
 import os
 import secrets
-import uuid
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, inspect
 
@@ -80,8 +79,26 @@ def migrate():
                 print("Adding child_plan to users...")
                 conn.execute(text("ALTER TABLE users ADD COLUMN child_plan VARCHAR(50) DEFAULT 'UNKNOWN'"))
                 conn.execute(text("UPDATE users SET child_plan = 'UNKNOWN' WHERE child_plan IS NULL"))
+
+            # ── 페널티 시스템 컬럼 ──────────────────────────────────────────
+            if "penalty_points" not in user_columns:
+                print("Adding penalty_points to users...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN penalty_points FLOAT NOT NULL DEFAULT 0.0"))
+
+            if "total_penalty_points" not in user_columns:
+                print("Adding total_penalty_points to users...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN total_penalty_points FLOAT NOT NULL DEFAULT 0.0"))
+
+            if "suspension_count" not in user_columns:
+                print("Adding suspension_count to users...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN suspension_count INTEGER NOT NULL DEFAULT 0"))
+
+            if "penalty_until" not in user_columns:
+                print("Adding penalty_until to users...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN penalty_until TIMESTAMP"))
         else:
             print("users table does not exist, skipping.")
+
 
         # ── notices 테이블 추가 ─────────────────────────────
         if "notices" not in inspector.get_table_names():

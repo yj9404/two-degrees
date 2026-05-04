@@ -1,6 +1,74 @@
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
-import { setAdminToken, getAdminToken, initAdminTokenFromCookie } from '../lib/api.ts';
+import { setAdminToken, getAdminToken, initAdminTokenFromCookie, getUser } from '../lib/api.ts';
+
+describe('apiFetch error handling', () => {
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(() => {
+        originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+    });
+
+    test('should throw default error message when no JSON body or detail field', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 500,
+            json: async () => ({})
+        } as Response);
+
+        await assert.rejects(
+            async () => await getUser('123'),
+            (err: Error) => err.message === '서버 오류 (500)'
+        );
+    });
+
+    test('should throw detail string when it exists in JSON body', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 400,
+            json: async () => ({ detail: 'Custom error from backend' })
+        } as Response);
+
+        await assert.rejects(
+            async () => await getUser('123'),
+            (err: Error) => err.message === 'Custom error from backend'
+        );
+    });
+
+    test('should throw Pydantic array validation error message', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 422,
+            json: async () => ({
+                detail: [
+                    { type: 'missing', loc: ['body', 'username'], msg: 'Field required' }
+                ]
+            })
+        } as Response);
+
+        await assert.rejects(
+            async () => await getUser('123'),
+            (err: Error) => err.message === 'Field required'
+        );
+    });
+
+    test('should throw default error message when JSON parsing fails', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 502,
+            json: async () => { throw new Error('Invalid JSON'); }
+        } as Response);
+
+        await assert.rejects(
+            async () => await getUser('123'),
+            (err: Error) => err.message === '서버 오류 (502)'
+        );
+    });
+});
 
 describe('Admin Token Management', () => {
     beforeEach(() => {
@@ -144,5 +212,53 @@ describe('Admin Token Management', () => {
         const diffHours = diffMs / (1000 * 60 * 60);
 
         assert.ok(diffHours > 23.9 && diffHours < 24.1, `Expiry should be ~24h, got ${diffHours}h`);
+    });
+});
+
+describe('API Functions', () => {
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(() => {
+        originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+    });
+
+    describe('getUserStats', () => {
+        test('should return user stats on success', async () => {
+            const mockStats = {
+                total_active: 100,
+                total_users: 150,
+                total_matchings: 50,
+                male_active: 60,
+                female_active: 40
+            };
+            global.fetch = async () => ({
+                ok: true,
+                status: 200,
+                json: async () => mockStats
+            } as Response);
+
+            const result = await getUserStats();
+            assert.deepStrictEqual(result, mockStats);
+        });
+
+        test('should throw an error when the API call fails', async () => {
+            global.fetch = async () => ({
+                ok: false,
+                status: 500,
+                json: async () => ({ detail: 'Internal Server Error' })
+            } as Response);
+
+            await assert.rejects(
+                async () => { await getUserStats(); },
+                (err: Error) => {
+                    assert.strictEqual(err.message, 'Internal Server Error');
+                    return true;
+                }
+            );
+        });
     });
 });
