@@ -214,3 +214,51 @@ describe('Admin Token Management', () => {
         assert.ok(diffHours > 23.9 && diffHours < 24.1, `Expiry should be ~24h, got ${diffHours}h`);
     });
 });
+
+describe('API Functions', () => {
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(() => {
+        originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+    });
+
+    describe('getUserStats', () => {
+        test('should return user stats on success', async () => {
+            const mockStats = {
+                total_active: 100,
+                total_users: 150,
+                total_matchings: 50,
+                male_active: 60,
+                female_active: 40
+            };
+            global.fetch = async () => ({
+                ok: true,
+                status: 200,
+                json: async () => mockStats
+            } as Response);
+
+            const result = await getUserStats();
+            assert.deepStrictEqual(result, mockStats);
+        });
+
+        test('should throw an error when the API call fails', async () => {
+            global.fetch = async () => ({
+                ok: false,
+                status: 500,
+                json: async () => ({ detail: 'Internal Server Error' })
+            } as Response);
+
+            await assert.rejects(
+                async () => { await getUserStats(); },
+                (err: Error) => {
+                    assert.strictEqual(err.message, 'Internal Server Error');
+                    return true;
+                }
+            );
+        });
+    });
+});

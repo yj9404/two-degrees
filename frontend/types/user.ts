@@ -89,6 +89,20 @@ export interface UserReadAdmin extends Omit<UserCreatePayload, "password"> {
     contact: string;
     is_active: boolean;
     match_count: number;
+    // 페널티 시스템
+    penalty_points: number;
+    total_penalty_points: number;
+    suspension_count: number;
+    penalty_until: string | null;
+}
+
+/** PATCH /api/admin/users/{user_id}/penalty 요청 페이로드 */
+export interface PenaltyUpdatePayload {
+    penalty_points?: number;
+    total_penalty_points?: number;
+    suspension_count?: number;
+    /** ISO 8601 문자열 또는 null (정지 해제) */
+    penalty_until?: string | null;
 }
 
 /** GET /api/upload/presigned-url 응답 */
