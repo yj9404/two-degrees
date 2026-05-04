@@ -1,6 +1,74 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
-import { setAdminToken, getAdminToken, initAdminTokenFromCookie, getUserStats } from '../lib/api.ts';
+import { setAdminToken, getAdminToken, initAdminTokenFromCookie, getUser } from '../lib/api.ts';
+
+describe('apiFetch error handling', () => {
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(() => {
+        originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+    });
+
+    test('should throw default error message when no JSON body or detail field', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 500,
+            json: async () => ({})
+        } as Response);
+
+        await assert.rejects(
+            async () => await getUser('123'),
+            (err: Error) => err.message === '서버 오류 (500)'
+        );
+    });
+
+    test('should throw detail string when it exists in JSON body', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 400,
+            json: async () => ({ detail: 'Custom error from backend' })
+        } as Response);
+
+        await assert.rejects(
+            async () => await getUser('123'),
+            (err: Error) => err.message === 'Custom error from backend'
+        );
+    });
+
+    test('should throw Pydantic array validation error message', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 422,
+            json: async () => ({
+                detail: [
+                    { type: 'missing', loc: ['body', 'username'], msg: 'Field required' }
+                ]
+            })
+        } as Response);
+
+        await assert.rejects(
+            async () => await getUser('123'),
+            (err: Error) => err.message === 'Field required'
+        );
+    });
+
+    test('should throw default error message when JSON parsing fails', async () => {
+        global.fetch = async () => ({
+            ok: false,
+            status: 502,
+            json: async () => { throw new Error('Invalid JSON'); }
+        } as Response);
+
+        await assert.rejects(
+            async () => await getUser('123'),
+            (err: Error) => err.message === '서버 오류 (502)'
+        );
+    });
+});
 
 describe('Admin Token Management', () => {
     beforeEach(() => {
