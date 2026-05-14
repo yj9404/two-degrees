@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice, updateUserPenalty } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice, updateUserPenalty, triggerGenerateDailyMatches } from "@/lib/api";
 import AdvancedFilterPanel, { type AdvancedFilterValues } from "@/components/AdvancedFilterPanel";
 import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap } from "lucide-react";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, AIBatchRecommendResultItem, Notice, PenaltyUpdatePayload } from "@/types/user";
@@ -1010,6 +1010,8 @@ export default function AdminPage() {
     const [activeTab, setActiveTab] = useState<"USERS" | "MATCHINGS" | "NOTICES" | "AI_HISTORY" | "BATCH_AI">("USERS");
     const [matchings, setMatchings] = useState<MatchingResponse[]>([]);
     const [loadingMatchings, setLoadingMatchings] = useState(false);
+    const [generatingDailyMatches, setGeneratingDailyMatches] = useState(false);
+    const [dailyMatchResult, setDailyMatchResult] = useState<string | null>(null);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [creatingMatch, setCreatingMatch] = useState(false);
     const [filterMatchStatus, setFilterMatchStatus] = useState<"" | MatchStatus>("");
@@ -1445,6 +1447,21 @@ export default function AdminPage() {
         }
     };
 
+    const handleGenerateDailyMatches = async () => {
+        if (!confirm("AI 자동 매칭을 지금 바로 실행할까요?\n최대 10회 AI API를 호출하여 2쌍을 생성합니다.")) return;
+        setGeneratingDailyMatches(true);
+        setDailyMatchResult(null);
+        try {
+            const result = await triggerGenerateDailyMatches();
+            setDailyMatchResult(result.message);
+            await fetchMatchings();
+        } catch (err) {
+            setDailyMatchResult(err instanceof Error ? `오류: ${err.message}` : "실행 중 오류가 발생했습니다.");
+        } finally {
+            setGeneratingDailyMatches(false);
+        }
+    };
+
     // ── N:M 배치 추천 함수 ───────────────────────
     const handleBatchToggleTarget = (userId: string) => {
         setBatchTargetIds(prev =>
@@ -1800,7 +1817,28 @@ export default function AdminPage() {
                             <Button size="sm" variant="outline" onClick={fetchMatchings} disabled={loadingMatchings}>
                                 {loadingMatchings ? "로딩 중..." : "새로고침"}
                             </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-violet-300 text-violet-700 hover:bg-violet-50 hover:border-violet-400 font-semibold"
+                                onClick={handleGenerateDailyMatches}
+                                disabled={generatingDailyMatches}
+                            >
+                                {generatingDailyMatches ? (
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-3.5 h-3.5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin inline-block" />
+                                        AI 매칭 실행 중...
+                                    </span>
+                                ) : "🤖 AI 자동 매칭 실행"}
+                            </Button>
                         </div>
+
+                        {dailyMatchResult && (
+                            <div className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm border ${dailyMatchResult.startsWith("오류") ? "bg-red-50 border-red-200 text-red-700" : "bg-violet-50 border-violet-200 text-violet-700"}`}>
+                                <span className="font-medium">{dailyMatchResult}</span>
+                                <button onClick={() => setDailyMatchResult(null)} className="text-slate-400 hover:text-slate-600 ml-4">✕</button>
+                            </div>
+                        )}
 
                         {loadingMatchings ? (
                             <div className="flex justify-center py-16">
@@ -1816,7 +1854,14 @@ export default function AdminPage() {
                                         className="shadow-sm border-slate-200 overflow-hidden hover:border-blue-300 transition-colors"
                                     >
                                         <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                                            <span>생성: {match.created_at ? new Date(match.created_at).toLocaleString() : "-"}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span>생성: {match.created_at ? new Date(match.created_at).toLocaleString() : "-"}</span>
+                                                {match.is_auto_generated && (
+                                                    <span className="font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200 flex items-center gap-1">
+                                                        🤖 오늘의 AI 추천
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div className="flex items-center gap-1.5">
                                                 {(() => {
                                                     const isExpiredMatch = match.expires_at ? new Date(match.expires_at) < new Date() : false;

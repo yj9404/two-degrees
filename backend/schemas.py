@@ -232,6 +232,7 @@ class MatchingResponse(BaseModel):
     user_a_token: Optional[str] = None
     user_b_token: Optional[str] = None
     expires_at: Optional[datetime] = None
+    is_auto_generated: bool = False
     is_contact_shared: bool = False
 
     # 관리자 확인용 간략한 유저 정보 포함

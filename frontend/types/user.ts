@@ -150,6 +150,7 @@ export interface MatchingResponse {
     user_a_token?: string;
     user_b_token?: string;
     expires_at?: string;
+    is_auto_generated?: boolean;
     is_contact_shared: boolean;
     user_a_info: UserReadAdmin;
     user_b_info: UserReadAdmin;

@@ -270,6 +270,11 @@ export async function updateMatchingStatus(
     });
 }
 
+/** POST /api/matchings/generate-daily – AI 일일 자동 매칭 수동 실행 (관리자) */
+export async function triggerGenerateDailyMatches(): Promise<{ message: string; created: number; attempts: number }> {
+    return apiFetch("/api/matchings/generate-daily", { method: "POST" });
+}
+
 /** DELETE /api/matchings/{matching_id} – 매칭 삭제 (관리자) */
 export async function deleteMatching(matching_id: string): Promise<void> {
     return apiFetch(`/api/matchings/${matching_id}`, {

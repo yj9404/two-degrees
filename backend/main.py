@@ -81,6 +81,122 @@ Base.metadata.create_all(bind=engine)
 # 페널티 스케줄러 (APScheduler) – 매월 1일 0시 penalty_points 초기화
 # ---------------------------------------------------------------------------
 
+def _run_generate_daily_matches() -> dict:
+    """
+    활성 남녀 유저 풀에서 AI 적합도 50점 이상인 커플 최대 2쌍을 PENDING으로 생성합니다.
+    스케줄러와 수동 API 엔드포인트에서 공통으로 호출됩니다.
+    반환: {"created": int, "attempts": int}
+    """
+    import random
+    from database import SessionLocal
+    from utils.gemini import get_ai_recommendations
+    from schemas import UserRead
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+
+        active_users = db.query(User).filter(
+            User.is_active == True,
+            or_(User.penalty_until.is_(None), User.penalty_until <= now),
+        ).all()
+
+        males = [u for u in active_users if u.gender == Gender.MALE]
+        females = [u for u in active_users if u.gender == Gender.FEMALE]
+
+        busy_matches = db.query(Matching).filter(
+            Matching.user_a_status != MatchStatus.REJECTED,
+            Matching.user_b_status != MatchStatus.REJECTED,
+            Matching.is_contact_shared == False,
+        ).all()
+        busy_ids = {m.user_a_id for m in busy_matches} | {m.user_b_id for m in busy_matches}
+
+        all_matches = db.query(Matching).all()
+        matched_pairs: set[tuple[str, str]] = {
+            (min(m.user_a_id, m.user_b_id), max(m.user_a_id, m.user_b_id))
+            for m in all_matches
+        }
+
+        avail_males = [u for u in males if u.id not in busy_ids]
+        avail_females = [u for u in females if u.id not in busy_ids]
+
+        exclude_fields = {"name", "referrer_name", "photo_urls"}
+        successful_matches = 0
+        attempts = 0
+        used_this_run: set[str] = set()
+
+        while successful_matches < 2 and attempts < 10:
+            attempts += 1
+
+            cur_males = [u for u in avail_males if u.id not in used_this_run]
+            cur_females = [u for u in avail_females if u.id not in used_this_run]
+            if not cur_males or not cur_females:
+                break
+
+            male = random.choice(cur_males)
+            female = random.choice(cur_females)
+
+            pair_key = (min(male.id, female.id), max(male.id, female.id))
+            if pair_key in matched_pairs:
+                continue
+
+            male_dict = UserRead.model_validate(male).model_dump(mode="json", exclude=exclude_fields)
+            female_dict = UserRead.model_validate(female).model_dump(mode="json", exclude=exclude_fields)
+
+            try:
+                results = get_ai_recommendations(male_dict, [female_dict])
+            except Exception as e:
+                logger.error(f"[DailyScheduler] Gemini API error: {e}")
+                continue
+
+            if not results:
+                continue
+
+            score = results[0].get("score", 0)
+            reason = results[0].get("reason", "")
+
+            if score < 50:
+                continue
+
+            sorted_ids = sorted([male.id, female.id])
+            existing = db.query(Matching).filter(
+                Matching.user_a_id == sorted_ids[0],
+                Matching.user_b_id == sorted_ids[1],
+            ).first()
+            if existing:
+                continue
+
+            new_matching = Matching(
+                user_a_id=sorted_ids[0],
+                user_b_id=sorted_ids[1],
+                ai_score=score,
+                ai_reason=reason,
+                is_auto_generated=True,
+            )
+            db.add(new_matching)
+            db.commit()
+            db.refresh(new_matching)
+
+            matched_pairs.add(pair_key)
+            used_this_run.add(male.id)
+            used_this_run.add(female.id)
+            successful_matches += 1
+            logger.info(
+                f"[DailyScheduler] Auto match created: {male.name} + {female.name}, score={score}"
+            )
+
+        logger.info(
+            f"[DailyScheduler] Done: {successful_matches} match(es) created in {attempts} attempt(s)."
+        )
+        return {"created": successful_matches, "attempts": attempts}
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"[DailyScheduler] Unexpected error: {exc}", exc_info=True)
+        raise
+    finally:
+        db.close()
+
+
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
@@ -115,9 +231,17 @@ try:
         finally:
             db.close()
 
+    def _generate_daily_matches():
+        try:
+            _run_generate_daily_matches()
+        except Exception:
+            pass  # 에러는 _run_generate_daily_matches 내부에서 이미 로깅됨
+
     _scheduler = BackgroundScheduler()
     # 매월 1일 0시 (서버 로컬 시간 기준)
     _scheduler.add_job(_reset_monthly_penalty_points, CronTrigger(day=1, hour=0, minute=0))
+    # 매일 KST 09:00 자동 매칭 생성
+    _scheduler.add_job(_generate_daily_matches, CronTrigger(hour=9, minute=0, timezone="Asia/Seoul"))
     _scheduler.start()
     logger.info("[Scheduler] Penalty reset scheduler started.")
 except ImportError:
@@ -763,6 +887,7 @@ def _build_matching_response(matching: Matching, db: Session, prefetched_users: 
         "user_a_token": matching.user_a_token,
         "user_b_token": matching.user_b_token,
         "expires_at": matching.expires_at,
+        "is_auto_generated": matching.is_auto_generated,
         "is_contact_shared": matching.is_contact_shared,
     }
 
@@ -815,6 +940,24 @@ def create_matching(payload: MatchingCreate, db: Session = Depends(get_db), _adm
     db.refresh(new_matching)
     
     return _build_matching_response(new_matching, db)
+
+
+# ---------------------------------------------------------------------------
+# POST /api/matchings/generate-daily – AI 자동 매칭 수동 실행
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/api/matchings/generate-daily",
+    summary="AI 일일 자동 매칭 수동 실행",
+    tags=["matchings"],
+)
+def trigger_generate_daily_matches(_admin: str = Depends(verify_admin)):
+    """스케줄러와 동일한 AI 자동 매칭 로직을 즉시 실행합니다. (관리자 전용)"""
+    try:
+        result = _run_generate_daily_matches()
+        return {"message": f"{result['created']}쌍 생성 완료 (시도 {result['attempts']}회)", **result}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"자동 매칭 실행 중 오류가 발생했습니다: {exc}")
 
 
 # ---------------------------------------------------------------------------

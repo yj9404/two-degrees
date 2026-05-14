@@ -172,7 +172,8 @@ class Matching(Base):
     
     ai_score = Column(Integer, nullable=True)
     ai_reason = Column(Text, nullable=True)
-    
+
+    is_auto_generated = Column(Boolean, nullable=False, default=False)
     is_contact_shared = Column(Boolean, nullable=False, default=False)
     
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
