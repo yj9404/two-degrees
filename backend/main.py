@@ -11,7 +11,7 @@ import hashlib
 import jwt
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 import bcrypt
@@ -48,6 +48,8 @@ from schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+_scheduler_secret = os.environ.get("SCHEDULER_SECRET", "")
 
 # ---------------------------------------------------------------------------
 # 앱 초기화 및 테이블 자동 생성
@@ -953,6 +955,29 @@ def create_matching(payload: MatchingCreate, db: Session = Depends(get_db), _adm
 )
 def trigger_generate_daily_matches(_admin: str = Depends(verify_admin)):
     """스케줄러와 동일한 AI 자동 매칭 로직을 즉시 실행합니다. (관리자 전용)"""
+    try:
+        result = _run_generate_daily_matches()
+        return {"message": f"{result['created']}쌍 생성 완료 (시도 {result['attempts']}회)", **result}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"자동 매칭 실행 중 오류가 발생했습니다: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# POST /api/internal/generate-daily – Cloud Scheduler 전용 엔드포인트
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/api/internal/generate-daily",
+    summary="Cloud Scheduler 전용 AI 자동 매칭 실행",
+    tags=["internal"],
+    include_in_schema=False,
+)
+def scheduled_generate_daily_matches(x_scheduler_secret: Optional[str] = Header(None)):
+    """GCP Cloud Scheduler가 X-Scheduler-Secret 헤더로 호출하는 전용 엔드포인트."""
+    if not _scheduler_secret:
+        raise HTTPException(status_code=503, detail="SCHEDULER_SECRET이 서버에 설정되지 않았습니다.")
+    if not x_scheduler_secret or not secrets.compare_digest(x_scheduler_secret, _scheduler_secret):
+        raise HTTPException(status_code=401, detail="인증 실패")
     try:
         result = _run_generate_daily_matches()
         return {"message": f"{result['created']}쌍 생성 완료 (시도 {result['attempts']}회)", **result}
