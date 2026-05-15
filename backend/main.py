@@ -105,6 +105,7 @@ def _run_generate_daily_matches() -> dict:
 
         males = [u for u in active_users if u.gender == Gender.MALE]
         females = [u for u in active_users if u.gender == Gender.FEMALE]
+        logger.info(f"[DailyScheduler] 활성 유저 — 남: {len(males)}명, 여: {len(females)}명")
 
         busy_matches = db.query(Matching).filter(
             Matching.user_a_status != MatchStatus.REJECTED,
@@ -112,15 +113,18 @@ def _run_generate_daily_matches() -> dict:
             Matching.is_contact_shared == False,
         ).all()
         busy_ids = {m.user_a_id for m in busy_matches} | {m.user_b_id for m in busy_matches}
+        logger.info(f"[DailyScheduler] 진행 중 매칭으로 제외된 유저: {len(busy_ids)}명")
 
         all_matches = db.query(Matching).all()
         matched_pairs: set[tuple[str, str]] = {
             (min(m.user_a_id, m.user_b_id), max(m.user_a_id, m.user_b_id))
             for m in all_matches
         }
+        logger.info(f"[DailyScheduler] 전체 매칭 이력: {len(matched_pairs)}쌍")
 
         avail_males = [u for u in males if u.id not in busy_ids]
         avail_females = [u for u in females if u.id not in busy_ids]
+        logger.info(f"[DailyScheduler] 매칭 가능 유저 — 남: {len(avail_males)}명, 여: {len(avail_females)}명")
 
         exclude_fields = {"name", "referrer_name", "photo_urls"}
         successful_matches = 0
@@ -133,31 +137,38 @@ def _run_generate_daily_matches() -> dict:
             cur_males = [u for u in avail_males if u.id not in used_this_run]
             cur_females = [u for u in avail_females if u.id not in used_this_run]
             if not cur_males or not cur_females:
+                logger.info(f"[DailyScheduler] 시도 {attempts}: 가용 유저 소진 — 남 잔여 {len(cur_males)}명, 여 잔여 {len(cur_females)}명")
                 break
 
             male = random.choice(cur_males)
             female = random.choice(cur_females)
+            logger.info(f"[DailyScheduler] 시도 {attempts}: 후보 선택 — 남({male.name}), 여({female.name})")
 
             pair_key = (min(male.id, female.id), max(male.id, female.id))
             if pair_key in matched_pairs:
+                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — 기존 매칭 이력 존재")
                 continue
 
             male_dict = UserRead.model_validate(male).model_dump(mode="json", exclude=exclude_fields)
             female_dict = UserRead.model_validate(female).model_dump(mode="json", exclude=exclude_fields)
 
+            logger.info(f"[DailyScheduler] 시도 {attempts}: Gemini API 호출 중...")
             try:
                 results = get_ai_recommendations(male_dict, [female_dict])
             except Exception as e:
-                logger.error(f"[DailyScheduler] Gemini API error: {e}")
+                logger.error(f"[DailyScheduler] 시도 {attempts}: Gemini API 오류 — {e}")
                 continue
 
             if not results:
+                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — Gemini 결과 없음")
                 continue
 
             score = results[0].get("score", 0)
             reason = results[0].get("reason", "")
+            logger.info(f"[DailyScheduler] 시도 {attempts}: AI 점수 {score}점")
 
             if score < 50:
+                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — 점수 미달 ({score}점 < 50점)")
                 continue
 
             sorted_ids = sorted([male.id, female.id])
@@ -166,6 +177,7 @@ def _run_generate_daily_matches() -> dict:
                 Matching.user_b_id == sorted_ids[1],
             ).first()
             if existing:
+                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — DB 중복 매칭 존재")
                 continue
 
             new_matching = Matching(
