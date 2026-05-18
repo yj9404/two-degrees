@@ -1267,7 +1267,6 @@ def ai_recommend_matchings(
         )
         if latest_hist:
             # SQLAlchemy JSON 컬럼은 직접 교체해야 변경 감지됨
-            from datetime import timezone
             latest_hist.candidate_results = merged_for_db
             latest_hist.created_at = datetime.now(timezone.utc)
             db.add(latest_hist)
