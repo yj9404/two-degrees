@@ -126,6 +126,21 @@ def _run_generate_daily_matches() -> dict:
         avail_females = [u for u in females if u.id not in busy_ids]
         logger.info(f"[DailyScheduler] 매칭 가능 유저 — 남: {len(avail_males)}명, 여: {len(avail_females)}명")
 
+        # AiRecommendHistory 캐시 로드: 이미 평가된 쌍은 Gemini 재호출 없이 재사용
+        avail_ids = {u.id for u in avail_males + avail_females}
+        histories = db.query(AiRecommendHistory).filter(
+            AiRecommendHistory.target_user_id.in_(avail_ids)
+        ).all()
+        pair_cache: dict[tuple[str, str], dict] = {}
+        for hist in histories:
+            t_id = hist.target_user_id
+            if isinstance(hist.candidate_results, dict):
+                for cid, data in hist.candidate_results.items():
+                    key = (min(t_id, cid), max(t_id, cid))
+                    if key not in pair_cache and "score" in data:
+                        pair_cache[key] = {"score": data["score"], "reason": data.get("reason", "")}
+        logger.info(f"[DailyScheduler] AI 추천 캐시 로드: {len(pair_cache)}쌍")
+
         exclude_fields = {"name", "referrer_name", "photo_urls"}
         successful_matches = 0
         attempts = 0
@@ -149,23 +164,51 @@ def _run_generate_daily_matches() -> dict:
                 logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — 기존 매칭 이력 존재")
                 continue
 
-            male_dict = UserRead.model_validate(male).model_dump(mode="json", exclude=exclude_fields)
-            female_dict = UserRead.model_validate(female).model_dump(mode="json", exclude=exclude_fields)
+            # 캐시 히트 여부 확인
+            cached = pair_cache.get(pair_key)
+            if cached:
+                score = cached["score"]
+                reason = cached["reason"]
+                logger.info(f"[DailyScheduler] 시도 {attempts}: 캐시 히트 — AI 점수 {score}점 (Gemini 호출 생략)")
+            else:
+                male_dict = UserRead.model_validate(male).model_dump(mode="json", exclude=exclude_fields)
+                female_dict = UserRead.model_validate(female).model_dump(mode="json", exclude=exclude_fields)
 
-            logger.info(f"[DailyScheduler] 시도 {attempts}: Gemini API 호출 중...")
-            try:
-                results = get_ai_recommendations(male_dict, [female_dict])
-            except Exception as e:
-                logger.error(f"[DailyScheduler] 시도 {attempts}: Gemini API 오류 — {e}")
-                continue
+                logger.info(f"[DailyScheduler] 시도 {attempts}: Gemini API 호출 중...")
+                try:
+                    results = get_ai_recommendations(male_dict, [female_dict])
+                except Exception as e:
+                    logger.error(f"[DailyScheduler] 시도 {attempts}: Gemini API 오류 — {e}")
+                    continue
 
-            if not results:
-                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — Gemini 결과 없음")
-                continue
+                if not results:
+                    logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — Gemini 결과 없음")
+                    continue
 
-            score = results[0].get("score", 0)
-            reason = results[0].get("reason", "")
-            logger.info(f"[DailyScheduler] 시도 {attempts}: AI 점수 {score}점")
+                score = results[0].get("score", 0)
+                reason = results[0].get("reason", "")
+                logger.info(f"[DailyScheduler] 시도 {attempts}: AI 점수 {score}점")
+
+                # 결과를 AiRecommendHistory에 저장 (점수 미달 포함, 재호출 방지)
+                hist_record = (
+                    db.query(AiRecommendHistory)
+                    .filter(AiRecommendHistory.target_user_id == male.id)
+                    .first()
+                )
+                new_entry = {"score": score, "reason": reason}
+                if hist_record:
+                    updated = dict(hist_record.candidate_results or {})
+                    updated[female.id] = new_entry
+                    hist_record.candidate_results = updated
+                    hist_record.created_at = datetime.now(timezone.utc)
+                    db.add(hist_record)
+                else:
+                    db.add(AiRecommendHistory(
+                        target_user_id=male.id,
+                        candidate_results={female.id: new_entry},
+                    ))
+                db.commit()
+                pair_cache[pair_key] = new_entry
 
             if score < 50:
                 logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — 점수 미달 ({score}점 < 50점)")
