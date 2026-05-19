@@ -383,8 +383,8 @@ function MatchingDetailDialog({
     };
 
     const renderSuccessUI = () => {
-        const successMsg = (targetName: string, targetContact: string) =>
-            `🎉 축하드립니다! 두 분 모두 수락하셔서 매칭이 최종 성사되었습니다.\n👤 이름: ${targetName}\n📞 연락처: ${targetContact}\n* 두 분의 TwoDegrees 프로필은 잠시 휴식(비활성화) 처리되며, 추후 언제든지 다시 활성화하실 수 있습니다. 좋은 만남 응원합니다!`;
+        const successMsg = () =>
+            `🎉 축하드립니다! 두 분 모두 수락하셔서 매칭이 최종 성사되었습니다.\n* 두 분의 TwoDegrees 프로필은 잠시 휴식(비활성화) 처리되며, 추후 언제든지 다시 활성화하실 수 있습니다. 좋은 만남 응원합니다!`;
 
         return (
             <div className="space-y-4 py-2">
@@ -396,7 +396,7 @@ function MatchingDetailDialog({
                     <Button
                         variant="outline"
                         className="h-auto py-4 justify-start gap-3 border-blue-200 hover:bg-blue-50"
-                        onClick={() => copyToClipboard(successMsg(matching.user_b_info.name, matching.user_b_info.contact), `${matching.user_a_info.name}(A)에게 보낼`)}
+                        onClick={() => copyToClipboard(successMsg(), `${matching.user_a_info.name}(A)에게 보낼`)}
                     >
                         <MessageSquare className="w-4 h-4 text-blue-600 shrink-0" />
                         <div className="text-left">
@@ -407,7 +407,7 @@ function MatchingDetailDialog({
                     <Button
                         variant="outline"
                         className="h-auto py-4 justify-start gap-3 border-pink-200 hover:bg-pink-50"
-                        onClick={() => copyToClipboard(successMsg(matching.user_a_info.name, matching.user_a_info.contact), `${matching.user_b_info.name}(B)에게 보낼`)}
+                        onClick={() => copyToClipboard(successMsg(), `${matching.user_b_info.name}(B)에게 보낼`)}
                     >
                         <MessageSquare className="w-4 h-4 text-pink-600 shrink-0" />
                         <div className="text-left">
