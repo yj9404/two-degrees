@@ -159,6 +159,11 @@ def _run_generate_daily_matches() -> dict:
             female = random.choice(cur_females)
             logger.info(f"[DailyScheduler] 시도 {attempts}: 후보 선택 — 남({male.name}), 여({female.name})")
 
+            # 소개한 지인이 같은 경우 제외
+            if male.referrer_name and male.referrer_name == female.referrer_name:
+                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — 동일 추천인({male.referrer_name})")
+                continue
+
             pair_key = (min(male.id, female.id), max(male.id, female.id))
             if pair_key in matched_pairs:
                 logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — 기존 매칭 이력 존재")
