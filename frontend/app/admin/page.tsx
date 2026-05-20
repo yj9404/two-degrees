@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice, updateUserPenalty, triggerGenerateDailyMatches } from "@/lib/api";
 import AdvancedFilterPanel, { type AdvancedFilterValues } from "@/components/AdvancedFilterPanel";
-import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap, Search } from "lucide-react";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, AIBatchRecommendResultItem, Notice, PenaltyUpdatePayload } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1035,6 +1035,9 @@ export default function AdminPage() {
     const [compareCandidate, setCompareCandidate] = useState<UserReadAdmin | null>(null);
     const [compareBaseUser, setCompareBaseUser] = useState<UserReadAdmin | null>(null);
 
+    // 매칭 검색
+    const [matchingSearch, setMatchingSearch] = useState("");
+
     // AI 이력 관련 상태
     const [aiHistory, setAiHistory] = useState<AIRecommendHistoryRead[]>([]);
     const [loadingAiHistory, setLoadingAiHistory] = useState(false);
@@ -1801,8 +1804,41 @@ export default function AdminPage() {
                 )}
 
                 {/* --- 매칭 탭 --- */}
-                {activeTab === "MATCHINGS" && (
+                {activeTab === "MATCHINGS" && (() => {
+                    const filteredMatchings = matchingSearch.trim()
+                        ? matchings.filter((m) => {
+                              const q = matchingSearch.trim().toLowerCase();
+                              return (
+                                  m.user_a_info.name.toLowerCase().includes(q) ||
+                                  m.user_b_info.name.toLowerCase().includes(q)
+                              );
+                          })
+                        : matchings;
+                    return (
                     <div className="space-y-4">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="이름으로 검색"
+                                value={matchingSearch}
+                                onChange={(e) => setMatchingSearch(e.target.value)}
+                                className="w-full text-sm border border-slate-200 rounded-md pl-8 pr-3 py-2 bg-white text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            />
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            {matchingSearch && (
+                                <button
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                    onClick={() => setMatchingSearch("")}
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
+                        {matchingSearch && (
+                            <p className="text-xs text-slate-500">
+                                <span className="font-semibold text-blue-600">{filteredMatchings.length}</span>건 검색됨
+                            </p>
+                        )}
                         <div className="flex flex-wrap gap-3 items-center">
                             <select
                                 value={filterMatchStatus}
@@ -1846,9 +1882,11 @@ export default function AdminPage() {
                             </div>
                         ) : matchings.length === 0 ? (
                             <p className="text-center text-slate-400 py-16">등록된 매칭이 없습니다.</p>
+                        ) : filteredMatchings.length === 0 ? (
+                            <p className="text-center text-slate-400 py-16">검색 결과가 없습니다.</p>
                         ) : (
                             <div className="space-y-4">
-                                {matchings.slice(0, visibleMatchingsCount).map((match) => (
+                                {filteredMatchings.slice(0, visibleMatchingsCount).map((match) => (
                                     <Card
                                         key={match.id}
                                         className="shadow-sm border-slate-200 overflow-hidden hover:border-blue-300 transition-colors"
@@ -1970,7 +2008,7 @@ export default function AdminPage() {
                                 ))}
 
                                 {/* 무한 스크롤 sentinel */}
-                                {visibleMatchingsCount < matchings.length && (
+                                {visibleMatchingsCount < filteredMatchings.length && (
                                     <div ref={matchingsSentinelRef} className="w-full h-2" />
                                 )}
 
@@ -1980,13 +2018,14 @@ export default function AdminPage() {
                                     </div>
                                 )}
 
-                                {!loadingMoreMatchings && visibleMatchingsCount >= matchings.length && matchings.length > 10 && (
+                                {!loadingMoreMatchings && visibleMatchingsCount >= filteredMatchings.length && filteredMatchings.length > 10 && (
                                     <p className="text-center text-slate-400 text-xs py-2">모든 매칭을 불러왔습니다.</p>
                                 )}
                             </div>
                         )}
                     </div>
-                )}
+                    );
+                })()}
 
                 {/* --- 공지사항 탭 --- */}
                 {activeTab === "NOTICES" && (
