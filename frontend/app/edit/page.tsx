@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getUser, updateUser, deleteUser } from "@/lib/api";
+import { getUser, updateUser, deleteUserSelf } from "@/lib/api";
 import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus, MarriageIntent, ChildPlan } from "@/types/user";
 
 import {
@@ -53,6 +53,8 @@ function EditProfileContent() {
     >("idle");
     const [errorMsg, setErrorMsg] = useState("");
     const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteContact, setDeleteContact] = useState("");
+    const [deletePassword, setDeletePassword] = useState("");
 
     // ── 상태 전이 핸들러 ──────────────────────────
     useEffect(() => {
@@ -194,8 +196,8 @@ function EditProfileContent() {
         if (!user_id) return;
         setIsDeleting(true);
         try {
-            await deleteUser(user_id);
-            alert("프로필이 성공적으로 삭제되었습니다.");
+            await deleteUserSelf(user_id, deleteContact, deletePassword);
+            alert("계정이 삭제되었습니다.");
             router.push("/");
         } catch (err) {
             alert(err instanceof Error ? err.message : "삭제 실패");
@@ -486,19 +488,50 @@ function EditProfileContent() {
                 <p className="text-center text-slate-500 text-xs pb-8">입력하신 정보는 매칭 목적으로만 사용됩니다.</p>
 
                 <div className="pt-8 pb-12 flex justify-center">
-                    <AlertDialog>
+                    <AlertDialog onOpenChange={(open) => { if (!open) { setDeleteContact(""); setDeletePassword(""); } }}>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" className="w-full sm:w-auto font-semibold">계정 삭제</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent className="w-[90vw] max-w-md rounded-xl p-6">
                             <AlertDialogHeader>
-                                <AlertDialogTitle>정말 삭제하시겠습니까?</AlertDialogTitle>
-                                <AlertDialogDescription>모든 데이터가 영구적으로 삭제됩니다.</AlertDialogDescription>
+                                <AlertDialogTitle>계정을 삭제하시겠습니까?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    본인 확인을 위해 연락처와 비밀번호를 입력해 주세요.<br />
+                                    삭제 후 개인정보는 즉시 초기화되며 복구할 수 없습니다.
+                                </AlertDialogDescription>
                             </AlertDialogHeader>
+                            <div className="flex flex-col gap-3 py-2">
+                                <div className="flex flex-col gap-1">
+                                    <Label htmlFor="del-contact" className="text-sm text-slate-600">연락처</Label>
+                                    <Input
+                                        id="del-contact"
+                                        type="tel"
+                                        placeholder="010-0000-0000"
+                                        value={deleteContact}
+                                        onChange={(e) => setDeleteContact(e.target.value)}
+                                        disabled={isDeleting}
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <Label htmlFor="del-password" className="text-sm text-slate-600">비밀번호</Label>
+                                    <Input
+                                        id="del-password"
+                                        type="password"
+                                        placeholder="비밀번호 입력"
+                                        value={deletePassword}
+                                        onChange={(e) => setDeletePassword(e.target.value)}
+                                        disabled={isDeleting}
+                                    />
+                                </div>
+                            </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel disabled={isDeleting}>취소</AlertDialogCancel>
-                                <AlertDialogAction onClick={(e) => { e.preventDefault(); handleDeleteAccount(); }} disabled={isDeleting} className="bg-red-500 hover:bg-red-600 text-white">
-                                    {isDeleting ? "삭제 중..." : "확인"}
+                                <AlertDialogAction
+                                    onClick={(e) => { e.preventDefault(); handleDeleteAccount(); }}
+                                    disabled={isDeleting || !deleteContact || !deletePassword}
+                                    className="bg-red-500 hover:bg-red-600 text-white"
+                                >
+                                    {isDeleting ? "삭제 중..." : "삭제 확인"}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>

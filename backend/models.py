@@ -143,6 +143,11 @@ class User(Base):
         Boolean, nullable=False, default=True
     )  # 매칭 페널티 정책 동의 여부 (최초 1회 필수)
 
+    # ── 소프트 삭제 ──────────────────────────────────────────────────────────
+    is_deleted = Column(
+        Boolean, nullable=True, default=False
+    )  # 관리자 삭제 처리 여부 (True이면 개인정보 초기화, 목록에서 제외)
+
     def __repr__(self) -> str:
         return f"<User id={self.id!r} name={self.name!r} gender={self.gender}>"
 

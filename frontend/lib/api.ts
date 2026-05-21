@@ -207,6 +207,14 @@ export async function deleteUser(userId: string): Promise<void> {
     });
 }
 
+/** DELETE /api/users/{user_id}/self – 본인 계정 삭제 (contact + password 인증) */
+export async function deleteUserSelf(userId: string, contact: string, password: string): Promise<void> {
+    return apiFetch(`/api/users/${userId}/self`, {
+        method: "DELETE",
+        body: JSON.stringify({ contact, password }),
+    });
+}
+
 /** GET /api/upload/presigned-url – S3 업로드용 Presigned URL 발급 */
 export async function getPresignedUrl(
     filename: string,

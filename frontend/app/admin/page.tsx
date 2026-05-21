@@ -47,17 +47,35 @@ const CHILD_PLAN_LABEL: Record<string, string> = {
 function UserDetailDialog({
     user,
     onClose,
+    onDeleted,
 }: {
     user: UserReadAdmin | null;
     onClose: () => void;
+    onDeleted: (userId: string) => void;
 }) {
     const [zoomedPhotoIndex, setZoomedPhotoIndex] = useState<number | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         setZoomedPhotoIndex(null);
     }, [user?.id]);
 
     if (!user) return null;
+
+    const handleDelete = async () => {
+        if (!confirm(`'${user.name}' 프로필을 삭제하시겠습니까?\n매칭 이력은 유지되며, 개인정보는 즉시 초기화됩니다.`)) return;
+        setIsDeleting(true);
+        try {
+            await deleteUser(user.id);
+            onDeleted(user.id);
+            onClose();
+        } catch {
+            alert("삭제 중 오류가 발생했습니다.");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const rows: [string, React.ReactNode][] = [
         ["이름", user.name],
         ["성별", GENDER_LABEL[user.gender] ?? user.gender],
@@ -153,9 +171,17 @@ function UserDetailDialog({
                         </div>
                     )}
 
-                    <div className="flex flex-col gap-2 pt-2">
-                        <Button variant="outline" className="w-full" onClick={onClose}>
+                    <div className="flex gap-2 pt-2">
+                        <Button variant="outline" className="flex-1" onClick={onClose}>
                             닫기
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            className="flex-1"
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? "삭제 중..." : "삭제"}
                         </Button>
                     </div>
                 </DialogContent>
@@ -2457,6 +2483,7 @@ export default function AdminPage() {
             <UserDetailDialog
                 user={selectedUser}
                 onClose={() => setSelectedUser(null)}
+                onDeleted={(userId) => setUsers(prev => prev.filter(u => u.id !== userId))}
             />
 
             <CompareUsersDialog

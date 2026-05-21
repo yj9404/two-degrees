@@ -18,7 +18,7 @@ import bcrypt
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date, or_
 
-from database import Base, engine, get_db
+from database import Base, DATABASE_URL, engine, get_db
 from models import Gender, ChildPlan, MarriageIntent, User, Matching, MatchStatus, Notice, AiRecommendHistory, AiBatchRecommendHistory
 from schemas import (
     AdminAuthRequest,
@@ -80,6 +80,31 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 # ---------------------------------------------------------------------------
+# 스키마 마이그레이션 – Alembic 없이 컬럼 추가 (idempotent)
+# ---------------------------------------------------------------------------
+
+def _run_migrations():
+    """신규 컬럼이 누락된 경우 ALTER TABLE로 추가합니다 (멱등 실행)."""
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            if DATABASE_URL.startswith("sqlite"):
+                # SQLite는 IF NOT EXISTS 미지원 → 컬럼 목록 직접 확인
+                from sqlalchemy import inspect as sa_inspect
+                cols = {c["name"] for c in sa_inspect(engine).get_columns("users")}
+                if "is_deleted" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE"))
+                    conn.commit()
+            else:
+                # PostgreSQL 9.6+: IF NOT EXISTS 지원
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE"))
+                conn.commit()
+    except Exception as e:
+        logger.warning("마이그레이션 실행 중 오류 (무시하고 계속): %s", e)
+
+_run_migrations()
+
+# ---------------------------------------------------------------------------
 # 페널티 스케줄러 (APScheduler) – 매월 1일 0시 penalty_points 초기화
 # ---------------------------------------------------------------------------
 
@@ -101,6 +126,7 @@ def _run_generate_daily_matches() -> dict:
         active_users = db.query(User).filter(
             User.is_active == True,
             or_(User.penalty_until.is_(None), User.penalty_until <= now),
+            or_(User.is_deleted == False, User.is_deleted.is_(None)),
         ).all()
 
         males = [u for u in active_users if u.gender == Gender.MALE]
@@ -460,13 +486,18 @@ def get_user_stats(db: Session = Depends(get_db)):
     """
     현재 매칭풀에 활성화(is_active=True)된 유저들의 남녀 활동 비율 및 전체 통계를 반환합니다.
     """
-    total_users = db.query(User).count()
+    total_users = db.query(User).filter(
+        or_(User.is_deleted == False, User.is_deleted.is_(None))
+    ).count()
     total_matchings = db.query(Matching).count()
-    
+
     # Aggregate gender counts at the database level
     stats = (
         db.query(User.gender, func.count(User.id))
-        .filter(User.is_active == True)
+        .filter(
+            User.is_active == True,
+            or_(User.is_deleted == False, User.is_deleted.is_(None)),
+        )
         .group_by(User.gender)
         .all()
     )
@@ -655,6 +686,11 @@ def _apply_user_filters(
 ):
 
     # ── 기존 필터 ────────────────────────────────────────────────────────────
+    # 소프트 삭제된 유저 제외 (is_deleted IS NULL OR is_deleted = FALSE)
+    query = query.filter(
+        (User.is_deleted == False) | (User.is_deleted.is_(None))
+    )
+
     if gender is not None:
         query = query.filter(User.gender == gender)
     if birth_year_min is not None:
@@ -897,30 +933,79 @@ def admin_login(payload: AdminAuthRequest):
 # DELETE /api/users/{user_id} – 유저 삭제 (관리자 전용)
 # ---------------------------------------------------------------------------
 
+def _soft_delete_user(user: User, db: Session) -> None:
+    """개인정보를 초기화하고 소프트 삭제 처리 (공통 로직)."""
+    user.name = "(삭제된 사용자)"
+    user.contact = f"deleted_{user.id}"
+    user.password_hash = ""
+    user.referrer_name = ""
+    user.desired_conditions = ""
+    user.deal_breakers = ""
+    user.is_active = False
+    user.is_deleted = True
+    user.instagram_id = None
+    user.photo_urls = []
+    user.height = None
+    user.active_area = None
+    user.education = None
+    user.workplace = None
+    user.mbti = None
+    user.smoking_status = None
+    user.drinking_status = None
+    user.religion = None
+    user.exercise = None
+    user.hobbies = None
+    user.intro = None
+    user.age_preference = None
+    user.age_gap_older = None
+    user.age_gap_younger = None
+    user.marriage_intent = None
+    user.child_plan = None
+    db.commit()
+
+
 @app.delete(
     "/api/users/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="유저 삭제",
+    summary="유저 삭제 (관리자)",
     tags=["users"],
 )
 def delete_user(user_id: str, db: Session = Depends(get_db), _admin: str = Depends(verify_admin)):
     """
-    user_id(UUID)에 해당하는 유저를 영구 삭제합니다.
+    user_id(UUID)에 해당하는 유저의 개인정보를 초기화하고 소프트 삭제 처리합니다 (관리자 전용).
+    매칭 이력 및 AI 추천 이력은 FK 참조 보존을 위해 삭제하지 않습니다.
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="해당 유저를 찾을 수 없습니다.",
-        )
-    
-    # 외래키 제약조건 위반 방지를 위해 관련된 매칭 내역을 함께 삭제합니다.
-    db.query(Matching).filter(
-        (Matching.user_a_id == user_id) | (Matching.user_b_id == user_id)
-    ).delete()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 유저를 찾을 수 없습니다.")
+    _soft_delete_user(user, db)
 
-    db.delete(user)
-    db.commit()
+
+# ---------------------------------------------------------------------------
+# DELETE /api/users/{user_id}/self – 본인 계정 삭제 (contact + password 인증)
+# ---------------------------------------------------------------------------
+
+@app.delete(
+    "/api/users/{user_id}/self",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="본인 계정 삭제",
+    tags=["users"],
+)
+def delete_user_self(user_id: str, payload: AuthRequest, db: Session = Depends(get_db)):
+    """
+    contact와 password로 본인 확인 후 계정을 소프트 삭제합니다.
+    매칭 이력 및 AI 추천 이력은 보존됩니다.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 유저를 찾을 수 없습니다.")
+
+    normalized_contact = payload.contact.replace("-", "")
+    stored_contact = (user.contact or "").replace("-", "")
+    if normalized_contact != stored_contact or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="연락처 또는 비밀번호가 올바르지 않습니다.")
+
+    _soft_delete_user(user, db)
 
 
 # ---------------------------------------------------------------------------
