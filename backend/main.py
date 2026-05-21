@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date, or_
 
 from database import Base, engine, get_db
-from models import Gender, User, Matching, MatchStatus, Notice, AiRecommendHistory, AiBatchRecommendHistory
+from models import Gender, ChildPlan, MarriageIntent, User, Matching, MatchStatus, Notice, AiRecommendHistory, AiBatchRecommendHistory
 from schemas import (
     AdminAuthRequest,
     AIBatchRecommendHistoryRead,
