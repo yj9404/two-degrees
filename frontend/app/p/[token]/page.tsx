@@ -564,7 +564,7 @@ export default function SharedProfilePage() {
                 </div>
 
                 {/* ── CTA Nudge + Action Buttons ── */}
-                <div className="p-4 pt-2 border-t border-slate-100 fixed bottom-0 max-w-md w-full bg-white/90 backdrop-blur-md space-y-3">
+                <div className="p-4 pt-2 border-t border-slate-100 sticky bottom-0 bg-white/90 backdrop-blur-md space-y-3 z-50">
                     <p className="text-center text-[12px] text-slate-500 font-medium">
                         ✨ 자세한 매력은 직접 대화하며 알아가 보세요!
                     </p>
