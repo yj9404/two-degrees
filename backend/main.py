@@ -1102,6 +1102,7 @@ def update_matching_status(
         raise HTTPException(status_code=404, detail="매칭 정보를 찾을 수 없습니다.")
 
     # 어느 유저의 상태를 업데이트할지 확인 (MatchingUpdate 스키마 기반)
+    # 토큰은 삭제되지 않으므로 상태 PENDING 재설정 시 기존 링크 그대로 재사용 가능
     if payload.user_id == matching.user_a_id:
         matching.user_a_status = payload.status
     elif payload.user_id == matching.user_b_id:
@@ -1918,14 +1919,11 @@ def respond_shared_matching(
         raise HTTPException(status_code=403, detail="이미 응답한 요청입니다.")
 
     # 상태 업데이트
+    # 토큰은 삭제하지 않음 – 접근 제어는 '유효기간 이내 + PENDING 상태' 두 조건으로만 제한
     if is_user_a:
         matching.user_a_status = payload.status
-        # 토큰 즉시 만료 처리 (재사용 방지)
-        matching.user_a_token = None
     else:
         matching.user_b_status = payload.status
-        # 토큰 즉시 만료 처리 (재사용 방지)
-        matching.user_b_token = None
 
     # 비활성화 로직은 관리자가 '연락처 전달 완료' 버튼을 누를 때 수행하도록 변경됨
 
