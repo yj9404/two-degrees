@@ -153,6 +153,18 @@ export default function SharedProfilePage() {
         }
     }, [token]);
 
+    // 모달 열림 시 배경 스크롤 차단
+    useEffect(() => {
+        if (showPolicyModal) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "";
+        }
+        return () => {
+            document.body.style.overflow = "";
+        };
+    }, [showPolicyModal]);
+
     useEffect(() => {
         if (!profile?.expires_at) return;
 
@@ -267,7 +279,7 @@ export default function SharedProfilePage() {
         >
             {/* ── 페널티 정책 동의 모달 ── */}
             {showPolicyModal && (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+                <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center">
                     {/* 딤 배경 – 클릭해도 닫히지 않음 */}
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
                     <div className="relative w-full max-w-md mx-auto bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
@@ -564,7 +576,7 @@ export default function SharedProfilePage() {
                 </div>
 
                 {/* ── CTA Nudge + Action Buttons ── */}
-                <div className="p-4 pt-2 border-t border-slate-100 sticky bottom-0 bg-white/90 backdrop-blur-md space-y-3 z-50">
+                <div className={`p-4 pt-2 border-t border-slate-100 sticky bottom-0 bg-white/90 backdrop-blur-md space-y-3 z-50 ${showPolicyModal ? "invisible" : ""}`}>
                     <p className="text-center text-[12px] text-slate-500 font-medium">
                         ✨ 자세한 매력은 직접 대화하며 알아가 보세요!
                     </p>
