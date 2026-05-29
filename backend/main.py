@@ -1809,21 +1809,25 @@ def mark_matching_contact_shared(
         elif user_status == MatchStatus.PENDING and is_expired:
             penalty_targets.append((user_id, 1.5))   # 무응답 만료 페널티
 
-    for user_id, points in penalty_targets:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            continue
-        user.penalty_points = (user.penalty_points or 0.0) + points
-        user.total_penalty_points = (user.total_penalty_points or 0.0) + points
+    if penalty_targets:
+        user_ids = [uid for uid, _ in penalty_targets]
+        users_dict = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
 
-        # 3.0점 이상 → 14일 정지 트리거
-        if user.penalty_points >= 3.0:
-            user.penalty_until = now + timedelta(days=14)
-            user.suspension_count = (user.suspension_count or 0) + 1
-            logger.info(
-                f"[Penalty] User {user_id} suspended until {user.penalty_until} "
-                f"(suspension #{user.suspension_count})"
-            )
+        for user_id, points in penalty_targets:
+            user = users_dict.get(user_id)
+            if not user:
+                continue
+            user.penalty_points = (user.penalty_points or 0.0) + points
+            user.total_penalty_points = (user.total_penalty_points or 0.0) + points
+
+            # 3.0점 이상 → 14일 정지 트리거
+            if user.penalty_points >= 3.0:
+                user.penalty_until = now + timedelta(days=14)
+                user.suspension_count = (user.suspension_count or 0) + 1
+                logger.info(
+                    f"[Penalty] User {user_id} suspended until {user.penalty_until} "
+                    f"(suspension #{user.suspension_count})"
+                )
 
     matching.is_contact_shared = True
     db.commit()
