@@ -1577,6 +1577,31 @@ def ai_batch_recommend_matchings(
     # Phase 3: 결과 처리, 캐시 업데이트, 점수 행렬 구축 (DB 작업, 순차)
     score_matrix: dict[str, dict[str, dict]] = {}
 
+    target_ids_for_phase3 = [t.id for t, _, _, _, _, _ in target_task_data]
+
+    from sqlalchemy import func
+    subq = (
+        db.query(
+            AiRecommendHistory.target_user_id,
+            func.max(AiRecommendHistory.created_at).label('max_created_at')
+        )
+        .filter(AiRecommendHistory.target_user_id.in_(target_ids_for_phase3))
+        .group_by(AiRecommendHistory.target_user_id)
+        .subquery()
+    )
+
+    all_hists = (
+        db.query(AiRecommendHistory)
+        .join(
+            subq,
+            (AiRecommendHistory.target_user_id == subq.c.target_user_id) &
+            (AiRecommendHistory.created_at == subq.c.max_created_at)
+        )
+        .all()
+    )
+
+    latest_hists_map = {hist.target_user_id: hist for hist in all_hists}
+
     for target, cached_results, new_candidates, valid_candidates, t_dict, c_dict_list in target_task_data:
         tid = target.id
         score_matrix[tid] = {}
@@ -1602,12 +1627,7 @@ def ai_batch_recommend_matchings(
                     pass
 
             merged = {**cached_results, **new_api_results}
-            latest_hist = (
-                db.query(AiRecommendHistory)
-                .filter(AiRecommendHistory.target_user_id == tid)
-                .order_by(AiRecommendHistory.created_at.desc())
-                .first()
-            )
+            latest_hist = latest_hists_map.get(tid)
             if latest_hist:
                 latest_hist.candidate_results = merged
                 latest_hist.created_at = datetime.now(timezone.utc)
@@ -1617,13 +1637,14 @@ def ai_batch_recommend_matchings(
                     target_user_id=tid,
                     candidate_results=merged,
                 ))
-            db.commit()
 
         for cid in candidate_id_set:
             if cid in new_api_results:
                 score_matrix[tid][cid] = new_api_results[cid]
             elif cid in cached_results:
                 score_matrix[tid][cid] = cached_results[cid]
+
+    db.commit()
 
     # 6. Greedy Assignment: 점수 높은 순으로 top_n 쌍 선택 (중복 없이)
     # 가능한 모든 (target_id, candidate_id, score) 조합을 점수 내림차순 정렬
