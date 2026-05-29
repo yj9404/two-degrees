@@ -1,6 +1,6 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
-import { setAdminToken, getAdminToken, initAdminTokenFromCookie, getUser } from '../lib/api.ts';
+import { setAdminToken, getAdminToken, initAdminTokenFromCookie, getUser, getUserStats } from '../lib/api.ts';
 
 describe('apiFetch error handling', () => {
     let originalFetch: typeof global.fetch;
