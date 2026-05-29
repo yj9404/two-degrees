@@ -1371,6 +1371,21 @@ def ai_batch_recommend_matchings(
     # target_task_data: (target, cached_results, new_candidates, valid_candidates)
     target_task_data: list[tuple] = []
 
+    # [Optimization] N+1 Query 방지: 모든 타겟의 히스토리를 한 번에 조회
+    valid_target_ids = [t.id for t in valid_targets]
+    all_histories = (
+        db.query(AiRecommendHistory)
+        .filter(AiRecommendHistory.target_user_id.in_(valid_target_ids))
+        .order_by(AiRecommendHistory.created_at.desc())
+        .all()
+    )
+    histories_by_target: dict[str, list[AiRecommendHistory]] = {}
+    for hist in all_histories:
+        if hist.target_user_id not in histories_by_target:
+            histories_by_target[hist.target_user_id] = []
+        if len(histories_by_target[hist.target_user_id]) < 10:
+            histories_by_target[hist.target_user_id].append(hist)
+
     for target in valid_targets:
         tid = target.id
         valid_candidates = [
@@ -1384,13 +1399,7 @@ def ai_batch_recommend_matchings(
 
         candidate_id_set = {c.id for c in valid_candidates}
 
-        recent_histories = (
-            db.query(AiRecommendHistory)
-            .filter(AiRecommendHistory.target_user_id == tid)
-            .order_by(AiRecommendHistory.created_at.desc())
-            .limit(10)
-            .all()
-        )
+        recent_histories = histories_by_target.get(tid, [])
         cached_results: dict[str, dict] = {}
         for hist in recent_histories:
             if isinstance(hist.candidate_results, dict):
