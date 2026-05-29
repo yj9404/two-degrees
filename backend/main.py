@@ -1577,6 +1577,31 @@ def ai_batch_recommend_matchings(
     # Phase 3: 결과 처리, 캐시 업데이트, 점수 행렬 구축 (DB 작업, 순차)
     score_matrix: dict[str, dict[str, dict]] = {}
 
+    target_ids_phase3 = [t.id for t, _, _, _, _, _ in target_task_data]
+    latest_histories: dict[str, AiRecommendHistory] = {}
+    if target_ids_phase3:
+        from sqlalchemy import func
+        subq = (
+            db.query(
+                AiRecommendHistory.target_user_id,
+                func.max(AiRecommendHistory.created_at).label("max_created_at")
+            )
+            .filter(AiRecommendHistory.target_user_id.in_(target_ids_phase3))
+            .group_by(AiRecommendHistory.target_user_id)
+            .subquery()
+        )
+        all_latest_histories = (
+            db.query(AiRecommendHistory)
+            .join(
+                subq,
+                (AiRecommendHistory.target_user_id == subq.c.target_user_id) &
+                (AiRecommendHistory.created_at == subq.c.max_created_at)
+            )
+            .all()
+        )
+        for h in all_latest_histories:
+            latest_histories[h.target_user_id] = h
+
     for target, cached_results, new_candidates, valid_candidates, t_dict, c_dict_list in target_task_data:
         tid = target.id
         score_matrix[tid] = {}
@@ -1602,21 +1627,18 @@ def ai_batch_recommend_matchings(
                     pass
 
             merged = {**cached_results, **new_api_results}
-            latest_hist = (
-                db.query(AiRecommendHistory)
-                .filter(AiRecommendHistory.target_user_id == tid)
-                .order_by(AiRecommendHistory.created_at.desc())
-                .first()
-            )
+            latest_hist = latest_histories.get(tid)
             if latest_hist:
                 latest_hist.candidate_results = merged
                 latest_hist.created_at = datetime.now(timezone.utc)
                 db.add(latest_hist)
             else:
-                db.add(AiRecommendHistory(
+                new_hist = AiRecommendHistory(
                     target_user_id=tid,
                     candidate_results=merged,
-                ))
+                )
+                db.add(new_hist)
+                latest_histories[tid] = new_hist
             db.commit()
 
         for cid in candidate_id_set:
