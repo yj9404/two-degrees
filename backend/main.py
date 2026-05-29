@@ -22,7 +22,6 @@ from database import Base, engine, get_db
 from models import Gender, User, Matching, MatchStatus, Notice, AiRecommendHistory, AiBatchRecommendHistory
 from schemas import (
     AdminAuthRequest,
-    AIBatchRecommendHistoryRead,
     AIBatchRecommendRequest,
     AIBatchRecommendResultItem,
     AIRecommendRequest,
