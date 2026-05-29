@@ -157,6 +157,9 @@ def _run_generate_daily_matches() -> dict:
         histories = db.query(AiRecommendHistory).filter(
             AiRecommendHistory.target_user_id.in_(avail_ids)
         ).all()
+        # Create a dictionary to map target_user_id to the actual AiRecommendHistory object
+        history_map = {hist.target_user_id: hist for hist in histories}
+
         pair_cache: dict[tuple[str, str], dict] = {}
         for hist in histories:
             t_id = hist.target_user_id
@@ -221,11 +224,7 @@ def _run_generate_daily_matches() -> dict:
                 logger.info(f"[DailyScheduler] 시도 {attempts}: AI 점수 {score}점")
 
                 # 결과를 AiRecommendHistory에 저장 (점수 미달 포함, 재호출 방지)
-                hist_record = (
-                    db.query(AiRecommendHistory)
-                    .filter(AiRecommendHistory.target_user_id == male.id)
-                    .first()
-                )
+                hist_record = history_map.get(male.id)
                 new_entry = {"score": score, "reason": reason}
                 if hist_record:
                     updated = dict(hist_record.candidate_results or {})
@@ -234,10 +233,12 @@ def _run_generate_daily_matches() -> dict:
                     hist_record.created_at = datetime.now(timezone.utc)
                     db.add(hist_record)
                 else:
-                    db.add(AiRecommendHistory(
+                    hist_record = AiRecommendHistory(
                         target_user_id=male.id,
                         candidate_results={female.id: new_entry},
-                    ))
+                    )
+                    db.add(hist_record)
+                    history_map[male.id] = hist_record
                 db.commit()
                 pair_cache[pair_key] = new_entry
 
