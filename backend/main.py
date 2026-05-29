@@ -1017,8 +1017,10 @@ def _build_matching_response(matching: Matching, db: Session, prefetched_users: 
         user_a = prefetched_users.get(matching.user_a_id)
         user_b = prefetched_users.get(matching.user_b_id)
     else:
-        user_a = db.query(User).filter(User.id == matching.user_a_id).first()
-        user_b = db.query(User).filter(User.id == matching.user_b_id).first()
+        users = db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).all()
+        user_dict = {u.id: u for u in users}
+        user_a = user_dict.get(matching.user_a_id)
+        user_b = user_dict.get(matching.user_b_id)
 
     return {
         "id": matching.id,
