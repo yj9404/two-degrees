@@ -34,8 +34,6 @@ def client(db_session):
         yield c
     app.dependency_overrides.clear()
 
-from models import Gender
-
 
 def test_get_user_stats_empty(client):
     """
