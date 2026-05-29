@@ -1500,6 +1500,38 @@ def ai_batch_recommend_matchings(
 
     exclude_fields = {"name", "referrer_name", "photo_urls"}
 
+    # N+1 쿼리 방지를 위한 AiRecommendHistory 일괄 조회 및 인메모리 그룹화
+    valid_target_ids = [t.id for t in valid_targets]
+
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import aliased
+
+    subq = (
+        select(
+            AiRecommendHistory,
+            func.row_number().over(
+                partition_by=AiRecommendHistory.target_user_id,
+                order_by=AiRecommendHistory.created_at.desc()
+            ).label('rn')
+        )
+        .filter(AiRecommendHistory.target_user_id.in_(valid_target_ids))
+        .subquery()
+    )
+
+    aliased_history = aliased(AiRecommendHistory, subq)
+    all_recent_histories = (
+        db.query(aliased_history)
+        .filter(subq.c.rn <= 10)
+        .order_by(subq.c.rn)
+        .all()
+    )
+
+    histories_by_target: dict[str, list[AiRecommendHistory]] = {}
+    for hist in all_recent_histories:
+        if hist.target_user_id not in histories_by_target:
+            histories_by_target[hist.target_user_id] = []
+        histories_by_target[hist.target_user_id].append(hist)
+
     # 5. Phase 1: 캐시 조회 및 AI 호출 대상 수집 (DB 작업, 순차)
     # target_task_data: (target, cached_results, new_candidates, valid_candidates)
     target_task_data: list[tuple] = []
@@ -1517,13 +1549,7 @@ def ai_batch_recommend_matchings(
 
         candidate_id_set = {c.id for c in valid_candidates}
 
-        recent_histories = (
-            db.query(AiRecommendHistory)
-            .filter(AiRecommendHistory.target_user_id == tid)
-            .order_by(AiRecommendHistory.created_at.desc())
-            .limit(10)
-            .all()
-        )
+        recent_histories = histories_by_target.get(tid, [])
         cached_results: dict[str, dict] = {}
         for hist in recent_histories:
             if isinstance(hist.candidate_results, dict):
@@ -1602,12 +1628,8 @@ def ai_batch_recommend_matchings(
                     pass
 
             merged = {**cached_results, **new_api_results}
-            latest_hist = (
-                db.query(AiRecommendHistory)
-                .filter(AiRecommendHistory.target_user_id == tid)
-                .order_by(AiRecommendHistory.created_at.desc())
-                .first()
-            )
+            latest_hist = histories_by_target.get(tid, [None])[0] if histories_by_target.get(tid) else None
+
             if latest_hist:
                 latest_hist.candidate_results = merged
                 latest_hist.created_at = datetime.now(timezone.utc)
