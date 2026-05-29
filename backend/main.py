@@ -1459,6 +1459,7 @@ def ai_batch_recommend_matchings(
     from schemas import UserRead
     from utils.gemini import get_ai_recommendations
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    from sqlalchemy import func
 
     # 1. 타겟 유저 목록 조회
     targets = db.query(User).filter(User.id.in_(payload.target_user_ids)).all()
@@ -1504,6 +1505,42 @@ def ai_batch_recommend_matchings(
     # target_task_data: (target, cached_results, new_candidates, valid_candidates)
     target_task_data: list[tuple] = []
 
+    valid_target_ids = [t.id for t in valid_targets]
+
+    # 윈도우 함수를 사용하여 타겟별 최신 히스토리 10개만 DB에서 가져오기
+    # row_number는 1부터 시작
+    subq = (
+        db.query(
+            AiRecommendHistory,
+            func.row_number().over(
+                partition_by=AiRecommendHistory.target_user_id,
+                order_by=AiRecommendHistory.created_at.desc()
+            ).label("rn")
+        )
+        .filter(AiRecommendHistory.target_user_id.in_(valid_target_ids))
+        .subquery()
+    )
+
+    # subquery에서 AiRecommendHistory 객체를 가져오기 위한 쿼리
+    # aliased를 사용하여 subquery 결과를 AiRecommendHistory 모델에 매핑
+    from sqlalchemy.orm import aliased
+    history_alias = aliased(AiRecommendHistory, subq)
+
+    recent_histories_query = (
+        db.query(history_alias)
+        .filter(subq.c.rn <= 10)
+        .order_by(history_alias.target_user_id, subq.c.rn)
+        .all()
+    )
+
+    histories_by_target: dict[str, list] = {}
+    for hist in recent_histories_query:
+        tid = hist.target_user_id
+        if tid not in histories_by_target:
+            histories_by_target[tid] = []
+        histories_by_target[tid].append(hist)
+        # 이미 서브쿼리에서 최신순 10개로 정렬 및 제한되어 오므로 추가 처리 불필요
+
     for target in valid_targets:
         tid = target.id
         valid_candidates = [
@@ -1517,13 +1554,7 @@ def ai_batch_recommend_matchings(
 
         candidate_id_set = {c.id for c in valid_candidates}
 
-        recent_histories = (
-            db.query(AiRecommendHistory)
-            .filter(AiRecommendHistory.target_user_id == tid)
-            .order_by(AiRecommendHistory.created_at.desc())
-            .limit(10)
-            .all()
-        )
+        recent_histories = histories_by_target.get(tid, [])
         cached_results: dict[str, dict] = {}
         for hist in recent_histories:
             if isinstance(hist.candidate_results, dict):
@@ -1577,6 +1608,8 @@ def ai_batch_recommend_matchings(
     # Phase 3: 결과 처리, 캐시 업데이트, 점수 행렬 구축 (DB 작업, 순차)
     score_matrix: dict[str, dict[str, dict]] = {}
 
+    tids_with_results = list(ai_call_results.keys())
+
     for target, cached_results, new_candidates, valid_candidates, t_dict, c_dict_list in target_task_data:
         tid = target.id
         score_matrix[tid] = {}
@@ -1602,12 +1635,8 @@ def ai_batch_recommend_matchings(
                     pass
 
             merged = {**cached_results, **new_api_results}
-            latest_hist = (
-                db.query(AiRecommendHistory)
-                .filter(AiRecommendHistory.target_user_id == tid)
-                .order_by(AiRecommendHistory.created_at.desc())
-                .first()
-            )
+            recent = histories_by_target.get(tid)
+            latest_hist = recent[0] if recent else None
             if latest_hist:
                 latest_hist.candidate_results = merged
                 latest_hist.created_at = datetime.now(timezone.utc)
@@ -1617,13 +1646,14 @@ def ai_batch_recommend_matchings(
                     target_user_id=tid,
                     candidate_results=merged,
                 ))
-            db.commit()
 
         for cid in candidate_id_set:
             if cid in new_api_results:
                 score_matrix[tid][cid] = new_api_results[cid]
             elif cid in cached_results:
                 score_matrix[tid][cid] = cached_results[cid]
+
+    db.commit()
 
     # 6. Greedy Assignment: 점수 높은 순으로 top_n 쌍 선택 (중복 없이)
     # 가능한 모든 (target_id, candidate_id, score) 조합을 점수 내림차순 정렬
