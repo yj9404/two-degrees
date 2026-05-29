@@ -1829,8 +1829,10 @@ def mark_matching_contact_shared(
     db.commit()
     db.refresh(matching)
 
-    matching.user_a_info = db.query(User).filter(User.id == matching.user_a_id).first()
-    matching.user_b_info = db.query(User).filter(User.id == matching.user_b_id).first()
+    users = db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).all()
+    users_by_id = {u.id: u for u in users}
+    matching.user_a_info = users_by_id.get(matching.user_a_id)
+    matching.user_b_info = users_by_id.get(matching.user_b_id)
 
     return matching
 
