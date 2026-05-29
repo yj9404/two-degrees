@@ -141,10 +141,11 @@ def _run_generate_daily_matches() -> dict:
         busy_ids = {m.user_a_id for m in busy_matches} | {m.user_b_id for m in busy_matches}
         logger.info(f"[DailyScheduler] 진행 중 매칭으로 제외된 유저: {len(busy_ids)}명")
 
-        all_matches = db.query(Matching).all()
+        # 최적화: 메모리 사용량을 줄이기 위해 전체 매칭 객체가 아닌 ID 쌍만 미리 로드하여 O(1) in-memory 검증에 사용
+        all_matches = db.query(Matching.user_a_id, Matching.user_b_id).all()
         matched_pairs: set[tuple[str, str]] = {
-            (min(m.user_a_id, m.user_b_id), max(m.user_a_id, m.user_b_id))
-            for m in all_matches
+            (min(user_a_id, user_b_id), max(user_a_id, user_b_id))
+            for user_a_id, user_b_id in all_matches
         }
         logger.info(f"[DailyScheduler] 전체 매칭 이력: {len(matched_pairs)}쌍")
 
@@ -246,13 +247,8 @@ def _run_generate_daily_matches() -> dict:
                 continue
 
             sorted_ids = sorted([male.id, female.id])
-            existing = db.query(Matching).filter(
-                Matching.user_a_id == sorted_ids[0],
-                Matching.user_b_id == sorted_ids[1],
-            ).first()
-            if existing:
-                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — DB 중복 매칭 존재")
-                continue
+
+            # DB 중복 매칭 존재 여부는 상단 `if pair_key in matched_pairs:` 에서 이미 in-memory로 검증하여 N+1 쿼리를 방지함
 
             new_matching = Matching(
                 user_a_id=sorted_ids[0],
