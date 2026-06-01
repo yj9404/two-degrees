@@ -1,7 +1,7 @@
 import pytest
 from models import User, Matching, Gender, MatchStatus
 from database import Base, get_db
-from main import app, verify_admin
+from main import app
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool

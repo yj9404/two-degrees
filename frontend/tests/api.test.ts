@@ -1,6 +1,6 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
-import { setAdminToken, getAdminToken, initAdminTokenFromCookie, getUser } from '../lib/api.ts';
+import { setAdminToken, getAdminToken, initAdminTokenFromCookie, getUser, getUserStats, deleteUser } from '../lib/api.ts';
 
 describe('apiFetch error handling', () => {
     let originalFetch: typeof global.fetch;
@@ -258,6 +258,45 @@ describe('API Functions', () => {
                     assert.strictEqual(err.message, 'Internal Server Error');
                     return true;
                 }
+            );
+        });
+    });
+
+    describe('deleteUser', () => {
+        test('should make a DELETE request to the correct URL', async () => {
+            let fetchCalled = false;
+            global.fetch = async (input, init) => {
+                fetchCalled = true;
+                assert.strictEqual(input, 'http://localhost:8000/api/users/user-123');
+                assert.strictEqual(init?.method, 'DELETE');
+                return { ok: true, status: 204 } as Response;
+            };
+            await deleteUser('user-123');
+            assert.ok(fetchCalled);
+        });
+
+        test('should include Authorization header when admin token is set', async () => {
+            const token = 'secret-admin-token';
+            setAdminToken(token);
+            let authHeader: string | undefined;
+            global.fetch = async (input, init) => {
+                authHeader = (init?.headers as Record<string, string>)['Authorization'];
+                return { ok: true, status: 204 } as Response;
+            };
+            await deleteUser('user-123');
+            assert.strictEqual(authHeader, `Bearer ${token}`);
+            setAdminToken(null);
+        });
+
+        test('should throw error on non-ok response', async () => {
+            global.fetch = async () => ({
+                ok: false,
+                status: 404,
+                json: async () => ({ detail: 'User not found' })
+            } as Response);
+            await assert.rejects(
+                async () => await deleteUser('non-existent'),
+                (err: Error) => err.message === 'User not found'
             );
         });
     });

@@ -372,3 +372,48 @@ def test_register_duplicate_contact_exact_format(client):
     res2 = client.post("/api/users", json=payload)
     assert res2.status_code == 400
     assert "이미 등록된 연락처입니다." in res2.json()["detail"]
+
+
+def test_delete_matching_success(client, db_session, monkeypatch):
+    monkeypatch.setenv("ADMIN_PASSWORD", "testadmin")
+
+    u1 = User(
+        name="테스터1", gender="MALE", birth_year=1990, job="직업1",
+        contact="010-0000-0001", password_hash="hash", referrer_name="지인1",
+        desired_conditions="조건1", deal_breakers="기피1"
+    )
+    u2 = User(
+        name="테스터2", gender="FEMALE", birth_year=1992, job="직업2",
+        contact="010-0000-0002", password_hash="hash", referrer_name="지인2",
+        desired_conditions="조건2", deal_breakers="기피2"
+    )
+    db_session.add(u1)
+    db_session.add(u2)
+    db_session.commit()
+
+    matching = Matching(user_a_id=u1.id, user_b_id=u2.id)
+    db_session.add(matching)
+    db_session.commit()
+    matching_id = matching.id
+
+    login_res = client.post("/api/admin/login", json={"password": "testadmin"})
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.delete(f"/api/matchings/{matching_id}", headers=headers)
+    assert response.status_code == 204
+
+    deleted = db_session.query(Matching).filter(Matching.id == matching_id).first()
+    assert deleted is None
+
+
+def test_delete_matching_not_found(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_PASSWORD", "testadmin")
+
+    login_res = client.post("/api/admin/login", json={"password": "testadmin"})
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.delete("/api/matchings/00000000-0000-0000-0000-000000000000", headers=headers)
+    assert response.status_code == 404
+    assert "매칭 정보를 찾을 수 없습니다." in response.json()["detail"]
