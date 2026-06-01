@@ -22,7 +22,6 @@ from database import Base, DATABASE_URL, engine, get_db
 from models import Gender, ChildPlan, MarriageIntent, SmokingStatus, User, Matching, MatchStatus, Notice, AiRecommendHistory, AiBatchRecommendHistory
 from schemas import (
     AdminAuthRequest,
-    AIBatchRecommendHistoryRead,
     AIBatchRecommendRequest,
     AIBatchRecommendResultItem,
     AIRecommendRequest,
@@ -72,8 +71,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # DB 테이블이 없으면 자동 생성
@@ -141,10 +140,10 @@ def _run_generate_daily_matches() -> dict:
         busy_ids = {m.user_a_id for m in busy_matches} | {m.user_b_id for m in busy_matches}
         logger.info(f"[DailyScheduler] 진행 중 매칭으로 제외된 유저: {len(busy_ids)}명")
 
-        all_matches = db.query(Matching).all()
+        all_matches = db.query(Matching.user_a_id, Matching.user_b_id).all()
         matched_pairs: set[tuple[str, str]] = {
-            (min(m.user_a_id, m.user_b_id), max(m.user_a_id, m.user_b_id))
-            for m in all_matches
+            (min(user_a_id, user_b_id), max(user_a_id, user_b_id))
+            for user_a_id, user_b_id in all_matches
         }
         logger.info(f"[DailyScheduler] 전체 매칭 이력: {len(matched_pairs)}쌍")
 
@@ -157,6 +156,7 @@ def _run_generate_daily_matches() -> dict:
         histories = db.query(AiRecommendHistory).filter(
             AiRecommendHistory.target_user_id.in_(avail_ids)
         ).all()
+        history_map = {hist.target_user_id: hist for hist in histories}
         pair_cache: dict[tuple[str, str], dict] = {}
         for hist in histories:
             t_id = hist.target_user_id
@@ -221,11 +221,7 @@ def _run_generate_daily_matches() -> dict:
                 logger.info(f"[DailyScheduler] 시도 {attempts}: AI 점수 {score}점")
 
                 # 결과를 AiRecommendHistory에 저장 (점수 미달 포함, 재호출 방지)
-                hist_record = (
-                    db.query(AiRecommendHistory)
-                    .filter(AiRecommendHistory.target_user_id == male.id)
-                    .first()
-                )
+                hist_record = history_map.get(male.id)
                 new_entry = {"score": score, "reason": reason}
                 if hist_record:
                     updated = dict(hist_record.candidate_results or {})
@@ -234,10 +230,12 @@ def _run_generate_daily_matches() -> dict:
                     hist_record.created_at = datetime.now(timezone.utc)
                     db.add(hist_record)
                 else:
-                    db.add(AiRecommendHistory(
+                    hist_record = AiRecommendHistory(
                         target_user_id=male.id,
                         candidate_results={female.id: new_entry},
-                    ))
+                    )
+                    db.add(hist_record)
+                    history_map[male.id] = hist_record
                 db.commit()
                 pair_cache[pair_key] = new_entry
 
@@ -246,13 +244,6 @@ def _run_generate_daily_matches() -> dict:
                 continue
 
             sorted_ids = sorted([male.id, female.id])
-            existing = db.query(Matching).filter(
-                Matching.user_a_id == sorted_ids[0],
-                Matching.user_b_id == sorted_ids[1],
-            ).first()
-            if existing:
-                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — DB 중복 매칭 존재")
-                continue
 
             new_matching = Matching(
                 user_a_id=sorted_ids[0],
@@ -1017,8 +1008,10 @@ def _build_matching_response(matching: Matching, db: Session, prefetched_users: 
         user_a = prefetched_users.get(matching.user_a_id)
         user_b = prefetched_users.get(matching.user_b_id)
     else:
-        user_a = db.query(User).filter(User.id == matching.user_a_id).first()
-        user_b = db.query(User).filter(User.id == matching.user_b_id).first()
+        users = db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).all()
+        user_dict = {u.id: u for u in users}
+        user_a = user_dict.get(matching.user_a_id)
+        user_b = user_dict.get(matching.user_b_id)
 
     return {
         "id": matching.id,
@@ -1504,6 +1497,21 @@ def ai_batch_recommend_matchings(
     # target_task_data: (target, cached_results, new_candidates, valid_candidates)
     target_task_data: list[tuple] = []
 
+    # N+1 쿼리 방지: 모든 타겟의 히스토리를 한 번에 조회
+    valid_target_ids = [t.id for t in valid_targets]
+    all_histories = (
+        db.query(AiRecommendHistory)
+        .filter(AiRecommendHistory.target_user_id.in_(valid_target_ids))
+        .order_by(AiRecommendHistory.created_at.desc())
+        .all()
+    )
+    histories_by_target: dict[str, list[AiRecommendHistory]] = {}
+    for hist in all_histories:
+        if hist.target_user_id not in histories_by_target:
+            histories_by_target[hist.target_user_id] = []
+        if len(histories_by_target[hist.target_user_id]) < 10:
+            histories_by_target[hist.target_user_id].append(hist)
+
     for target in valid_targets:
         tid = target.id
         valid_candidates = [
@@ -1517,13 +1525,7 @@ def ai_batch_recommend_matchings(
 
         candidate_id_set = {c.id for c in valid_candidates}
 
-        recent_histories = (
-            db.query(AiRecommendHistory)
-            .filter(AiRecommendHistory.target_user_id == tid)
-            .order_by(AiRecommendHistory.created_at.desc())
-            .limit(10)
-            .all()
-        )
+        recent_histories = histories_by_target.get(tid, [])
         cached_results: dict[str, dict] = {}
         for hist in recent_histories:
             if isinstance(hist.candidate_results, dict):
@@ -1602,12 +1604,8 @@ def ai_batch_recommend_matchings(
                     pass
 
             merged = {**cached_results, **new_api_results}
-            latest_hist = (
-                db.query(AiRecommendHistory)
-                .filter(AiRecommendHistory.target_user_id == tid)
-                .order_by(AiRecommendHistory.created_at.desc())
-                .first()
-            )
+            recent = histories_by_target.get(tid)
+            latest_hist = recent[0] if recent else None
             if latest_hist:
                 latest_hist.candidate_results = merged
                 latest_hist.created_at = datetime.now(timezone.utc)
@@ -1617,13 +1615,14 @@ def ai_batch_recommend_matchings(
                     target_user_id=tid,
                     candidate_results=merged,
                 ))
-            db.commit()
 
         for cid in candidate_id_set:
             if cid in new_api_results:
                 score_matrix[tid][cid] = new_api_results[cid]
             elif cid in cached_results:
                 score_matrix[tid][cid] = cached_results[cid]
+
+    db.commit()
 
     # 6. Greedy Assignment: 점수 높은 순으로 top_n 쌍 선택 (중복 없이)
     # 가능한 모든 (target_id, candidate_id, score) 조합을 점수 내림차순 정렬
@@ -1809,28 +1808,34 @@ def mark_matching_contact_shared(
         elif user_status == MatchStatus.PENDING and is_expired:
             penalty_targets.append((user_id, 1.5))   # 무응답 만료 페널티
 
-    for user_id, points in penalty_targets:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            continue
-        user.penalty_points = (user.penalty_points or 0.0) + points
-        user.total_penalty_points = (user.total_penalty_points or 0.0) + points
+    if penalty_targets:
+        penalty_user_ids = [uid for uid, _ in penalty_targets]
+        penalty_users = {u.id: u for u in db.query(User).filter(User.id.in_(penalty_user_ids)).all()}
 
-        # 3.0점 이상 → 14일 정지 트리거
-        if user.penalty_points >= 3.0:
-            user.penalty_until = now + timedelta(days=14)
-            user.suspension_count = (user.suspension_count or 0) + 1
-            logger.info(
-                f"[Penalty] User {user_id} suspended until {user.penalty_until} "
-                f"(suspension #{user.suspension_count})"
-            )
+        for user_id, points in penalty_targets:
+            user = penalty_users.get(user_id)
+            if not user:
+                continue
+            user.penalty_points = (user.penalty_points or 0.0) + points
+            user.total_penalty_points = (user.total_penalty_points or 0.0) + points
+
+            # 3.0점 이상 → 14일 정지 트리거
+            if user.penalty_points >= 3.0:
+                user.penalty_until = now + timedelta(days=14)
+                user.suspension_count = (user.suspension_count or 0) + 1
+                logger.info(
+                    f"[Penalty] User {user_id} suspended until {user.penalty_until} "
+                    f"(suspension #{user.suspension_count})"
+                )
 
     matching.is_contact_shared = True
     db.commit()
     db.refresh(matching)
 
-    matching.user_a_info = db.query(User).filter(User.id == matching.user_a_id).first()
-    matching.user_b_info = db.query(User).filter(User.id == matching.user_b_id).first()
+    users = db.query(User).filter(User.id.in_([matching.user_a_id, matching.user_b_id])).all()
+    users_by_id = {u.id: u for u in users}
+    matching.user_a_info = users_by_id.get(matching.user_a_id)
+    matching.user_b_info = users_by_id.get(matching.user_b_id)
 
     return matching
 

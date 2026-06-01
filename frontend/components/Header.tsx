@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { UserCircle, MessageCircle } from "lucide-react";
+import { UserCircle } from "lucide-react";
 
 export default function Header() {
     const pathname = usePathname();
