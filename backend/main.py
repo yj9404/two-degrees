@@ -12,7 +12,9 @@ import jwt
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi.exceptions import ResponseValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 import bcrypt
 from sqlalchemy.orm import Session
@@ -74,6 +76,11 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+@app.exception_handler(ResponseValidationError)
+async def response_validation_error_handler(_request, exc: ResponseValidationError):
+    logger.error("ResponseValidationError details: %s", exc.errors())
+    return JSONResponse(status_code=500, content={"detail": "Internal response validation error"})
 
 # DB 테이블이 없으면 자동 생성
 Base.metadata.create_all(bind=engine)

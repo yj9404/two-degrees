@@ -166,7 +166,8 @@ class UserRead(_UserBase):
 
     id: str
     is_active: bool
-    # 응답 스키마에서는 min_length 제약 없이 재정의 (소프트 삭제된 유저 직렬화 대응)
+    # 응답 스키마에서는 입력 제약 없이 재정의 (소프트 삭제된 유저 직렬화 대응)
+    birth_year: int
     desired_conditions: Optional[str] = None
     deal_breakers: Optional[str] = None
 
