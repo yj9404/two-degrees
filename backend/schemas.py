@@ -170,6 +170,7 @@ class UserRead(_UserBase):
     birth_year: int
     desired_conditions: Optional[str] = None
     deal_breakers: Optional[str] = None
+    intro: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
