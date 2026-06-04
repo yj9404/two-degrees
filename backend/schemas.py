@@ -166,11 +166,25 @@ class UserRead(_UserBase):
 
     id: str
     is_active: bool
-    # 응답 스키마에서는 입력 제약 없이 재정의 (소프트 삭제된 유저 직렬화 대응)
+    # 응답 스키마에서는 입력 제약(max_length, min_length, ge, le) 없이 재정의
     birth_year: int
+    name: str
+    job: str
+    referrer_name: str
     desired_conditions: Optional[str] = None
     deal_breakers: Optional[str] = None
     intro: Optional[str] = None
+    instagram_id: Optional[str] = None
+    active_area: Optional[str] = None
+    education: Optional[str] = None
+    workplace: Optional[str] = None
+    mbti: Optional[str] = None
+    religion: Optional[str] = None
+    exercise: Optional[str] = None
+    hobbies: Optional[str] = None
+    height: Optional[int] = None
+    age_gap_older: Optional[int] = None
+    age_gap_younger: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
