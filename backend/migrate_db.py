@@ -63,6 +63,13 @@ def migrate():
                     conn.execute(text("ALTER TABLE matchings ADD COLUMN is_contact_shared BOOLEAN DEFAULT 0 NOT NULL"))
                 else:
                     conn.execute(text("ALTER TABLE matchings ADD COLUMN is_contact_shared BOOLEAN DEFAULT FALSE NOT NULL"))
+
+            if "is_auto_generated" not in columns:
+                print("Adding is_auto_generated to matchings...")
+                if DATABASE_URL.startswith("sqlite"):
+                    conn.execute(text("ALTER TABLE matchings ADD COLUMN is_auto_generated BOOLEAN DEFAULT 0 NOT NULL"))
+                else:
+                    conn.execute(text("ALTER TABLE matchings ADD COLUMN is_auto_generated BOOLEAN DEFAULT FALSE NOT NULL"))
         else:
             print("matchings table does not exist, skipping.")
 
@@ -96,6 +103,10 @@ def migrate():
             if "penalty_until" not in user_columns:
                 print("Adding penalty_until to users...")
                 conn.execute(text("ALTER TABLE users ADD COLUMN penalty_until TIMESTAMP"))
+
+            if "has_agreed_penalty_policy" not in user_columns:
+                print("Adding has_agreed_penalty_policy to users...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN has_agreed_penalty_policy BOOLEAN NOT NULL DEFAULT TRUE"))
         else:
             print("users table does not exist, skipping.")
 

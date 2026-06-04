@@ -84,19 +84,25 @@ Base.metadata.create_all(bind=engine)
 
 def _run_migrations():
     """신규 컬럼이 누락된 경우 ALTER TABLE로 추가합니다 (멱등 실행)."""
-    from sqlalchemy import text
+    from sqlalchemy import text, inspect as sa_inspect
     try:
         with engine.connect() as conn:
             if DATABASE_URL.startswith("sqlite"):
                 # SQLite는 IF NOT EXISTS 미지원 → 컬럼 목록 직접 확인
-                from sqlalchemy import inspect as sa_inspect
-                cols = {c["name"] for c in sa_inspect(engine).get_columns("users")}
-                if "is_deleted" not in cols:
+                user_cols = {c["name"] for c in sa_inspect(engine).get_columns("users")}
+                matching_cols = {c["name"] for c in sa_inspect(engine).get_columns("matchings")}
+                if "is_deleted" not in user_cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE"))
-                    conn.commit()
+                if "has_agreed_penalty_policy" not in user_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN has_agreed_penalty_policy BOOLEAN NOT NULL DEFAULT TRUE"))
+                if "is_auto_generated" not in matching_cols:
+                    conn.execute(text("ALTER TABLE matchings ADD COLUMN is_auto_generated BOOLEAN NOT NULL DEFAULT FALSE"))
+                conn.commit()
             else:
                 # PostgreSQL 9.6+: IF NOT EXISTS 지원
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_agreed_penalty_policy BOOLEAN NOT NULL DEFAULT TRUE"))
+                conn.execute(text("ALTER TABLE matchings ADD COLUMN IF NOT EXISTS is_auto_generated BOOLEAN NOT NULL DEFAULT FALSE"))
                 conn.commit()
     except Exception as e:
         logger.warning("마이그레이션 실행 중 오류 (무시하고 계속): %s", e)
@@ -1003,6 +1009,28 @@ def delete_user_self(user_id: str, payload: AuthRequest, db: Session = Depends(g
 # Matching 응답 보조기
 # ---------------------------------------------------------------------------
 
+def _deleted_user_placeholder(user_id: str) -> dict:
+    """DB에 존재하지 않는 유저 참조 시 직렬화 가능한 플레이스홀더를 반환합니다."""
+    return {
+        "id": user_id,
+        "name": "(삭제된 사용자)",
+        "gender": Gender.MALE,
+        "birth_year": 1900,
+        "job": "",
+        "contact": f"deleted_{user_id}",
+        "referrer_name": "",
+        "desired_conditions": None,
+        "deal_breakers": None,
+        "is_active": False,
+        "photo_urls": [],
+        "match_count": 0,
+        "penalty_points": 0.0,
+        "total_penalty_points": 0.0,
+        "suspension_count": 0,
+        "penalty_until": None,
+    }
+
+
 def _build_matching_response(matching: Matching, db: Session, prefetched_users: Optional[dict] = None):
     if prefetched_users is not None:
         user_a = prefetched_users.get(matching.user_a_id)
@@ -1022,8 +1050,8 @@ def _build_matching_response(matching: Matching, db: Session, prefetched_users: 
         "ai_score": matching.ai_score,
         "ai_reason": matching.ai_reason,
         "created_at": matching.created_at,
-        "user_a_info": user_a,
-        "user_b_info": user_b,
+        "user_a_info": user_a if user_a is not None else _deleted_user_placeholder(matching.user_a_id),
+        "user_b_info": user_b if user_b is not None else _deleted_user_placeholder(matching.user_b_id),
         "user_a_token": matching.user_a_token,
         "user_b_token": matching.user_b_token,
         "expires_at": matching.expires_at,
