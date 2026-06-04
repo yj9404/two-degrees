@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice, updateUserPenalty, triggerGenerateDailyMatches } from "@/lib/api";
+import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice, updateUserPenalty, triggerGenerateDailyMatches, resetUserPassword } from "@/lib/api";
 import AdvancedFilterPanel, { type AdvancedFilterValues } from "@/components/AdvancedFilterPanel";
-import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap, Search } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap, Search, KeyRound } from "lucide-react";
 import type { UserReadAdmin, MatchingResponse, MatchStatus, AIRecommendResult, AIRecommendHistoryRead, AIBatchRecommendResultItem, Notice, PenaltyUpdatePayload } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,7 @@ function UserDetailDialog({
 }) {
     const [zoomedPhotoIndex, setZoomedPhotoIndex] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isResettingPassword, setIsResettingPassword] = useState(false);
 
     useEffect(() => {
         setZoomedPhotoIndex(null);
@@ -73,6 +74,19 @@ function UserDetailDialog({
             alert("삭제 중 오류가 발생했습니다.");
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleResetPassword = async () => {
+        if (!confirm(`'${user.name}'의 비밀번호를 초기화하시겠습니까?\n초기 비밀번호: twodegrees1!`)) return;
+        setIsResettingPassword(true);
+        try {
+            const result = await resetUserPassword(user.id);
+            alert(`✅ ${result.message}\n\n사용자에게 초기 비밀번호를 안내해 주세요.`);
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "비밀번호 초기화 중 오류가 발생했습니다.");
+        } finally {
+            setIsResettingPassword(false);
         }
     };
 
@@ -171,18 +185,29 @@ function UserDetailDialog({
                         </div>
                     )}
 
-                    <div className="flex gap-2 pt-2">
-                        <Button variant="outline" className="flex-1" onClick={onClose}>
-                            닫기
-                        </Button>
+                    <div className="flex flex-col gap-2 pt-2">
                         <Button
-                            variant="destructive"
-                            className="flex-1"
-                            onClick={handleDelete}
-                            disabled={isDeleting}
+                            variant="outline"
+                            className="w-full text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+                            onClick={handleResetPassword}
+                            disabled={isResettingPassword}
                         >
-                            {isDeleting ? "삭제 중..." : "삭제"}
+                            <KeyRound className="w-4 h-4 mr-2" />
+                            {isResettingPassword ? "초기화 중..." : "비밀번호 초기화"}
                         </Button>
+                        <div className="flex gap-2">
+                            <Button variant="outline" className="flex-1" onClick={onClose}>
+                                닫기
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                className="flex-1"
+                                onClick={handleDelete}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? "삭제 중..." : "삭제"}
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
@@ -546,6 +571,7 @@ function UserCard({
     onToggleActive,
     onDelete,
     onPenaltyEdit,
+    onPasswordReset,
 }: {
     user: UserReadAdmin;
     selectedUserIds: string[];
@@ -554,6 +580,7 @@ function UserCard({
     onToggleActive: (user: UserReadAdmin) => void;
     onDelete: () => void;
     onPenaltyEdit?: (user: UserReadAdmin) => void;
+    onPasswordReset?: (user: UserReadAdmin) => void;
 }) {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -673,6 +700,22 @@ function UserCard({
                                 title="페널티 수정"
                             >
                                 <span className="text-base">⚑</span>
+                            </Button>
+                        )}
+
+                        {/* 비밀번호 초기화 버튼 */}
+                        {onPasswordReset && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onPasswordReset(user);
+                                }}
+                                className="h-8 w-8 p-0 text-amber-400 hover:text-amber-600 transition-colors"
+                                title="비밀번호 초기화"
+                            >
+                                <KeyRound className="w-4 h-4" />
                             </Button>
                         )}
 
@@ -1274,6 +1317,17 @@ export default function AdminPage() {
         }
     };
 
+    // ── 비밀번호 초기화 (카드에서 직접) ─────────
+    const handlePasswordResetFromCard = async (user: UserReadAdmin) => {
+        if (!confirm(`'${user.name}'의 비밀번호를 초기화하시겠습니까?\n초기 비밀번호: twodegrees1!`)) return;
+        try {
+            const result = await resetUserPassword(user.id);
+            alert(`✅ ${result.message}\n\n사용자에게 초기 비밀번호를 안내해 주세요.`);
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "비밀번호 초기화 중 오류가 발생했습니다.");
+        }
+    };
+
     // ── 매칭 관련 함수 ───────────────────────
     const handleSelectUser = (user: UserReadAdmin) => {
         const isSuspended = user.penalty_until ? new Date(user.penalty_until) > new Date() : false;
@@ -1779,6 +1833,7 @@ export default function AdminPage() {
                                                 onToggleActive={handleToggleActive}
                                                 onDelete={() => setToDeleteId(user.id)}
                                                 onPenaltyEdit={(u) => setPenaltyEditUser(u)}
+                                                onPasswordReset={handlePasswordResetFromCard}
                                             />
                                         ))}
                                         {filteredUsers.filter(u => u.gender === "MALE").length === 0 && (
@@ -1806,6 +1861,7 @@ export default function AdminPage() {
                                                 onToggleActive={handleToggleActive}
                                                 onDelete={() => setToDeleteId(user.id)}
                                                 onPenaltyEdit={(u) => setPenaltyEditUser(u)}
+                                                onPasswordReset={handlePasswordResetFromCard}
                                             />
                                         ))}
                                         {filteredUsers.filter(u => u.gender === "FEMALE").length === 0 && (

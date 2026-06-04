@@ -31,6 +31,7 @@ from schemas import (
     AIRecommendResult,
     AuthRequest,
     AuthResponse,
+    ChangePasswordRequest,
     DailyMatchingStatsResponse,
     MatchRespondRequest,
     MatchingCreate,
@@ -986,6 +987,45 @@ def delete_user(user_id: str, db: Session = Depends(get_db), _admin: str = Depen
 
 
 # ---------------------------------------------------------------------------
+# POST /api/admin/users/{user_id}/reset-password – 비밀번호 초기화 (관리자 전용)
+# ---------------------------------------------------------------------------
+
+ADMIN_RESET_PASSWORD = "twodegrees1!"
+
+@app.post(
+    "/api/admin/users/{user_id}/reset-password",
+    status_code=status.HTTP_200_OK,
+    summary="비밀번호 초기화 (관리자)",
+    tags=["admin"],
+)
+def admin_reset_user_password(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(verify_admin),
+):
+    """
+    관리자가 특정 유저의 비밀번호를 초기값(twodegrees1!)으로 초기화합니다.
+    비밀번호 분실 시 사용하며, 초기화 후 반드시 새 비밀번호로 변경하도록 안내해야 합니다.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 유저를 찾을 수 없습니다.",
+        )
+    if user.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="삭제된 유저의 비밀번호는 초기화할 수 없습니다.",
+        )
+
+    user.password_hash = hash_password(ADMIN_RESET_PASSWORD)
+    db.commit()
+
+    return {"message": f"비밀번호가 초기화되었습니다. 초기 비밀번호: {ADMIN_RESET_PASSWORD}"}
+
+
+# ---------------------------------------------------------------------------
 # DELETE /api/users/{user_id}/self – 본인 계정 삭제 (contact + password 인증)
 # ---------------------------------------------------------------------------
 
@@ -1013,8 +1053,44 @@ def delete_user_self(user_id: str, payload: AuthRequest, db: Session = Depends(g
 
 
 # ---------------------------------------------------------------------------
+# PATCH /api/users/{user_id}/change-password – 비밀번호 변경 (본인)
+# ---------------------------------------------------------------------------
+
+
+@app.patch(
+    "/api/users/{user_id}/change-password",
+    status_code=status.HTTP_200_OK,
+    summary="비밀번호 변경 (본인)",
+    tags=["users"],
+)
+def change_user_password(user_id: str, payload: ChangePasswordRequest, db: Session = Depends(get_db)):
+    """
+    현재 비밀번호를 확인한 후 새 비밀번호로 변경합니다.
+    - current_password: 현재 비밀번호 (본인 확인용)
+    - new_password: 새 비밀번호 (최소 4자)
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 유저를 찾을 수 없습니다.")
+    if user.is_deleted:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="삭제된 계정입니다.")
+
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="현재 비밀번호가 올바르지 않습니다.")
+
+    if payload.current_password == payload.new_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="새 비밀번호는 현재 비밀번호와 달라야 합니다.")
+
+    user.password_hash = hash_password(payload.new_password)
+    db.commit()
+
+    return {"message": "비밀번호가 성공적으로 변경되었습니다."}
+
+
+# ---------------------------------------------------------------------------
 # Matching 응답 보조기
 # ---------------------------------------------------------------------------
+
 
 def _deleted_user_placeholder(user_id: str) -> dict:
     """DB에 존재하지 않는 유저 참조 시 직렬화 가능한 플레이스홀더를 반환합니다."""

@@ -415,3 +415,22 @@ export async function updateUserPenalty(
         body: JSON.stringify(payload),
     });
 }
+
+/** POST /api/admin/users/{user_id}/reset-password – 비밀번호 초기화 (관리자) */
+export async function resetUserPassword(userId: string): Promise<{ message: string }> {
+    return apiFetch(`/api/admin/users/${userId}/reset-password`, {
+        method: "POST",
+    });
+}
+
+/** PATCH /api/users/{user_id}/change-password – 비밀번호 변경 (본인) */
+export async function changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+): Promise<{ message: string }> {
+    return apiFetch(`/api/users/${userId}/change-password`, {
+        method: "PATCH",
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+}

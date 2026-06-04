@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getUser, updateUser, deleteUserSelf } from "@/lib/api";
+import { getUser, updateUser, deleteUserSelf, changePassword } from "@/lib/api";
 import type { UserUpdatePayload, Gender, SmokingStatus, DrinkingStatus, MarriageIntent, ChildPlan } from "@/types/user";
 
 import {
@@ -55,6 +55,28 @@ function EditProfileContent() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteContact, setDeleteContact] = useState("");
     const [deletePassword, setDeletePassword] = useState("");
+
+    // 비밀번호 변경 상태
+    const [showPwChange, setShowPwChange] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmNewPassword, setConfirmNewPassword] = useState("");
+    const [pwChangeStatus, setPwChangeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+    const [pwChangeError, setPwChangeError] = useState("");
+
+    const handleTogglePwChange = () => {
+        setShowPwChange((prev) => {
+            if (prev) {
+                // 닫을 때 초기화
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmNewPassword("");
+                setPwChangeStatus("idle");
+                setPwChangeError("");
+            }
+            return !prev;
+        });
+    };
 
     // ── 상태 전이 핸들러 ──────────────────────────
     useEffect(() => {
@@ -205,6 +227,36 @@ function EditProfileContent() {
         }
     };
 
+    const handleChangePassword = async () => {
+        if (!user_id) return;
+        setPwChangeError("");
+
+        if (newPassword !== confirmNewPassword) {
+            setPwChangeError("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
+            return;
+        }
+        if (newPassword.length < 4) {
+            setPwChangeError("비밀번호는 최소 4자 이상이어야 합니다.");
+            return;
+        }
+
+        setPwChangeStatus("loading");
+        try {
+            await changePassword(user_id, currentPassword, newPassword);
+            setPwChangeStatus("success");
+            setCurrentPassword("");
+            setNewPassword("");
+            setConfirmNewPassword("");
+            setTimeout(() => {
+                setPwChangeStatus("idle");
+                setShowPwChange(false);
+            }, 2000);
+        } catch (err) {
+            setPwChangeStatus("error");
+            setPwChangeError(err instanceof Error ? err.message : "비밀번호 변경 실패");
+        }
+    };
+
     // ── 로딩/에러 상태 ────────────────────────────────────────────
     if (loadStatus === "loading") {
         return (
@@ -303,6 +355,71 @@ function EditProfileContent() {
                         <Field label="이름" required>
                             <Input id="edit-name" name="name" placeholder="홍길동" value={form.name ?? ""} onChange={handleChange} required />
                         </Field>
+
+                        {/* 비밀번호 변경 인라인 */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-slate-700">비밀번호</span>
+                                <button
+                                    type="button"
+                                    onClick={handleTogglePwChange}
+                                    className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors ${
+                                        showPwChange
+                                            ? "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                                            : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                                    }`}
+                                >
+                                    {showPwChange ? "✕ 취소" : "🔑 비밀번호 변경"}
+                                </button>
+                            </div>
+
+                            {showPwChange && (
+                                <div className="space-y-3 pt-1 pb-2 border-t border-slate-100">
+                                    <Input
+                                        id="pw-current"
+                                        type="password"
+                                        placeholder="현재 비밀번호"
+                                        value={currentPassword}
+                                        onChange={(e) => setCurrentPassword(e.target.value)}
+                                        autoComplete="current-password"
+                                    />
+                                    <Input
+                                        id="pw-new"
+                                        type="password"
+                                        placeholder="새 비밀번호 (최소 4자)"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        minLength={4}
+                                        autoComplete="new-password"
+                                    />
+                                    <Input
+                                        id="pw-confirm"
+                                        type="password"
+                                        placeholder="새 비밀번호 확인"
+                                        value={confirmNewPassword}
+                                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                        minLength={4}
+                                        autoComplete="new-password"
+                                    />
+                                    {pwChangeStatus === "error" && (
+                                        <p className="text-red-500 text-xs">{pwChangeError}</p>
+                                    )}
+                                    {pwChangeStatus === "success" && (
+                                        <p className="text-green-600 text-xs font-medium">✅ 비밀번호가 변경되었습니다.</p>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={pwChangeStatus === "loading" || !currentPassword || !newPassword || !confirmNewPassword}
+                                        className="w-full bg-slate-700 hover:bg-slate-800 text-white font-semibold"
+                                        onClick={handleChangePassword}
+                                    >
+                                        {pwChangeStatus === "loading" ? "변경 중..." : "변경 완료"}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+
                         <Field label="성별" required>
                             <RadioGroup value={form.gender ?? ""} onValueChange={(v) => handleSelect("gender", v)} className="flex gap-8">
                                 <div className="flex items-center gap-2">
@@ -487,7 +604,7 @@ function EditProfileContent() {
                 </form>
                 <p className="text-center text-slate-500 text-xs pb-8">입력하신 정보는 매칭 목적으로만 사용됩니다.</p>
 
-                <div className="pt-8 pb-12 flex justify-center">
+                <div className="pt-4 pb-12 flex justify-center">
                     <AlertDialog onOpenChange={(open) => { if (!open) { setDeleteContact(""); setDeletePassword(""); } }}>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" className="w-full sm:w-auto font-semibold">계정 삭제</Button>

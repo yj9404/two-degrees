@@ -137,6 +137,12 @@ class AdminAuthRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    """PATCH /api/users/{user_id}/change-password 요청 바디"""
+    current_password: str = Field(..., min_length=4, max_length=100, examples=["oldpass1"])
+    new_password: str = Field(..., min_length=4, max_length=100, examples=["newpass1"])
+
+
 class PresignedUrlResponse(BaseModel):
     """GET /api/upload/presigned-url 응답"""
 
