@@ -1083,10 +1083,11 @@ export default function AdminPage() {
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [creatingMatch, setCreatingMatch] = useState(false);
     const [filterMatchStatus, setFilterMatchStatus] = useState<"" | MatchStatus>("");
-    const [visibleMatchingsCount, setVisibleMatchingsCount] = useState(10);
+    const [visibleMatchingsCount, setVisibleMatchingsCount] = useState(20);
     const [loadingMoreMatchings, setLoadingMoreMatchings] = useState(false);
     const matchingsSentinelRef = useRef<HTMLDivElement>(null);
     const loadingMoreMatchingsRef = useRef(false);
+    const filteredMatchingsCountRef = useRef(0);
 
     // 공지사항 관련 상태
     const [notices, setNotices] = useState<Notice[]>([]);
@@ -1202,32 +1203,38 @@ export default function AdminPage() {
     }, [authed, fetchUsers, fetchMatchings, fetchNotices, fetchAiHistory]);
 
     // ── 매칭 무한 스크롤 ───────────────────────
+    // 필터/검색 변경 시 visibleCount 초기화
+    useEffect(() => {
+        setVisibleMatchingsCount(20);
+    }, [matchingSearch, filterMatchStatus]);
+
     useEffect(() => {
         const sentinel = matchingsSentinelRef.current;
         if (!sentinel || loadingMatchings) return;
 
         const observer = new IntersectionObserver(
             (entries) => {
-                if (entries[0].isIntersecting && !loadingMoreMatchingsRef.current) {
-                    setVisibleMatchingsCount((current) => {
-                        if (current >= matchings.length) return current;
-                        loadingMoreMatchingsRef.current = true;
-                        setLoadingMoreMatchings(true);
-                        setTimeout(() => {
-                            setVisibleMatchingsCount((c) => Math.min(c + 10, matchings.length));
-                            setLoadingMoreMatchings(false);
-                            loadingMoreMatchingsRef.current = false;
-                        }, 400);
-                        return current;
-                    });
-                }
+                if (!entries[0].isIntersecting || loadingMoreMatchingsRef.current) return;
+
+                // filteredMatchings는 클로저 밖에서 계산되므로 ref로 최신값 접근
+                setVisibleMatchingsCount((current) => {
+                    if (current >= filteredMatchingsCountRef.current) return current;
+                    loadingMoreMatchingsRef.current = true;
+                    setLoadingMoreMatchings(true);
+                    setTimeout(() => {
+                        setVisibleMatchingsCount((c) => Math.min(c + 20, filteredMatchingsCountRef.current));
+                        setLoadingMoreMatchings(false);
+                        loadingMoreMatchingsRef.current = false;
+                    }, 400);
+                    return current;
+                });
             },
-            { threshold: 0.1 }
+            { threshold: 0.1, rootMargin: "0px 0px 200px 0px" }
         );
 
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [loadingMatchings, matchings.length]);
+    }, [loadingMatchings, matchingSearch, filterMatchStatus]);
 
     // ── 공지사항 관련 함수 ─────────────────────
     const handleCreateNotice = async (e: React.FormEvent) => {
@@ -1876,7 +1883,7 @@ export default function AdminPage() {
 
                 {/* --- 매칭 탭 --- */}
                 {activeTab === "MATCHINGS" && (() => {
-                    const filteredMatchings = matchingSearch.trim()
+                    let filteredMatchings = matchingSearch.trim()
                         ? matchings.filter((m) => {
                               const q = matchingSearch.trim().toLowerCase();
                               return (
@@ -1885,7 +1892,20 @@ export default function AdminPage() {
                               );
                           })
                         : matchings;
+
+                    if (filterMatchStatus) {
+                        filteredMatchings = filteredMatchings.filter(
+                            (m) =>
+                                m.user_a_status === filterMatchStatus ||
+                                m.user_b_status === filterMatchStatus
+                        );
+                    }
+
+                    // observer 클로저에서 최신 count를 읽기 위해 ref 동기화
+                    filteredMatchingsCountRef.current = filteredMatchings.length;
+
                     return (
+
                     <div className="space-y-4">
                         <div className="relative">
                             <input
@@ -2078,10 +2098,12 @@ export default function AdminPage() {
                                     </Card>
                                 ))}
 
-                                {/* 무한 스크롤 sentinel */}
-                                {visibleMatchingsCount < filteredMatchings.length && (
-                                    <div ref={matchingsSentinelRef} className="w-full h-2" />
-                                )}
+                                {/* 무한 스크롤 sentinel - 항상 DOM에 유지해야 observer가 끊기지 않음 */}
+                                <div
+                                    ref={matchingsSentinelRef}
+                                    className="w-full h-2"
+                                    style={{ visibility: visibleMatchingsCount < filteredMatchings.length ? "visible" : "hidden" }}
+                                />
 
                                 {loadingMoreMatchings && (
                                     <div className="flex justify-center py-4">
@@ -2089,7 +2111,7 @@ export default function AdminPage() {
                                     </div>
                                 )}
 
-                                {!loadingMoreMatchings && visibleMatchingsCount >= filteredMatchings.length && filteredMatchings.length > 10 && (
+                                {!loadingMoreMatchings && visibleMatchingsCount >= filteredMatchings.length && filteredMatchings.length > 20 && (
                                     <p className="text-center text-slate-400 text-xs py-2">모든 매칭을 불러왔습니다.</p>
                                 )}
                             </div>
