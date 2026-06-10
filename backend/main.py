@@ -324,17 +324,11 @@ try:
         finally:
             db.close()
 
-    def _generate_daily_matches():
-        try:
-            _run_generate_daily_matches()
-        except Exception:
-            pass  # 에러는 _run_generate_daily_matches 내부에서 이미 로깅됨
-
     _scheduler = BackgroundScheduler()
     # 매월 1일 0시 (서버 로컬 시간 기준)
     _scheduler.add_job(_reset_monthly_penalty_points, CronTrigger(day=1, hour=0, minute=0))
-    # 매일 KST 09:00 자동 매칭 생성
-    _scheduler.add_job(_generate_daily_matches, CronTrigger(hour=9, minute=0, timezone="Asia/Seoul"))
+    # 일일 자동 매칭은 GCP Cloud Scheduler → /api/internal/generate-daily 로 단일 실행
+    # APScheduler에서 중복 실행하면 Race Condition으로 한 유저에 매칭 2개 생성되는 버그 발생
     _scheduler.start()
     logger.info("[Scheduler] Penalty reset scheduler started.")
 except ImportError:
@@ -1570,6 +1564,7 @@ def ai_batch_recommend_matchings(
         raise HTTPException(status_code=404, detail="타겟 유저를 찾을 수 없습니다.")
 
     # 2. 현재 매칭 진행 중인 유저 ID 집합 계산
+    # 진행 중 = (A_status != REJECTED) AND (B_status != REJECTED) AND (is_contact_shared == False)
     busy_matches = db.query(Matching).filter(
         (Matching.user_a_status != MatchStatus.REJECTED) &
         (Matching.user_b_status != MatchStatus.REJECTED) &
