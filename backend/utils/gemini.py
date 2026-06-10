@@ -1,6 +1,13 @@
 """
 gemini.py
 Gemini API 연동 유틸리티
+
+인증 방식:
+- 로컬 개발: GEMINI_API_KEY 환경변수로 AI Studio 경유 (간단한 테스트용)
+- 프로덕션 (GCP Cloud Run): Vertex AI 모드로 동작
+  - GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION 환경변수 필요
+  - Cloud Run 서비스 계정의 ADC(Application Default Credentials) 자동 사용
+  - → GCP 후불 청구 파이프라인 직접 연결 (AI Studio 선불 크레딧 우회)
 """
 
 import os
@@ -15,19 +22,45 @@ try:
 except ImportError:
     genai = None
 
+
+def _build_client():
+    """
+    환경변수에 따라 Vertex AI 또는 AI Studio 클라이언트를 반환합니다.
+
+    우선순위:
+    1. GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION 이 모두 설정된 경우
+       → Vertex AI 모드 (Cloud Run ADC 인증, aiplatform.googleapis.com)
+    2. GEMINI_API_KEY 가 설정된 경우
+       → AI Studio 모드 (generativelanguage.googleapis.com) — 로컬 개발용
+    """
+    if genai is None:
+        raise RuntimeError("google-genai 패키지가 설치되지 않았습니다.")
+
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+    if project:
+        # Vertex AI 모드: GCP IAM/ADC 인증, 후불 청구
+        logger.info(f"[Gemini] Vertex AI 모드로 초기화 (project={project}, location={location})")
+        return genai.Client(vertexai=True, project=project, location=location)
+
+    # 폴백: AI Studio 모드 (로컬 개발용)
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise EnvironmentError(
+            "Gemini 클라이언트 초기화 실패: "
+            "GOOGLE_CLOUD_PROJECT(Vertex AI) 또는 GEMINI_API_KEY(AI Studio) 중 하나를 설정해야 합니다."
+        )
+    logger.info("[Gemini] AI Studio 모드로 초기화 (로컬 개발 환경)")
+    return genai.Client(api_key=api_key)
+
+
 def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     타겟 유저와 후보 유저 리스트를 받아 Gemini API를 통해 각각의 적합도 점수와 추천 사유를 반환합니다.
     """
-    if genai is None:
-        raise RuntimeError("google-genai 패키지가 설치되지 않았습니다.")
-        
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise EnvironmentError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
-        
-    client = genai.Client(api_key=api_key)
-    
+    client = _build_client()
+
     system_instruction = (
         "당신은 최고의 매칭 확률을 자랑하는 TwoDegrees의 전문 소개팅 주선자입니다. "
         "전달되는 '기준 유저(User A)'와 여러 '상대 유저(User B)들'의 데이터를 쌍방향으로 분석하여 적합도를 평가하십시오.\n\n"
@@ -47,7 +80,7 @@ def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[st
         "4. 시너지와 라이프스타일 묘사: 단순한 조건 일치가 아니라, 두 사람의 대화 코드, 성향이 서로에게 어떻게 상호 보완적인 시너지를 낼지 묘사하십시오.\n"
         "5. 완곡하고 따뜻한 톤: 가치관이 일치할 때 '미래를 그리는 방향성이 닮아있어 깊은 대화를 나누기에 좋은 짝입니다' 등으로 부드럽게 표현하십시오."
     )
-    
+
     # 프롬프트 구성
     prompt = (
         f"기준 유저 (User A):\n{json.dumps(target_user, ensure_ascii=False, indent=2)}\n\n"
@@ -76,7 +109,7 @@ def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[st
                 "response_mime_type": "application/json",
             }
         )
-        
+
         result_text = response.text
 
         # 반환된 텍스트 파싱
@@ -87,7 +120,7 @@ def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[st
                 results = [results]
             else:
                 results = []
-                
+
         # 점수 높은 순으로 내림차순 정렬
         results.sort(key=lambda x: x.get("score", 0), reverse=True)
         return results
