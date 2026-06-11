@@ -149,11 +149,11 @@ export async function updateUser(
     });
 }
 
-/** POST /api/admin/login – 관리자 인증 */
-export async function adminAuth(password: string): Promise<{ access_token: string, token_type: string }> {
+/** POST /api/admin/login – Google ID 토큰으로 관리자 인증 */
+export async function adminAuth(idToken: string): Promise<{ access_token: string, token_type: string }> {
     return apiFetch("/api/admin/login", {
         method: "POST",
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ id_token: idToken }),
     });
 }
 

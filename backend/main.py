@@ -10,6 +10,8 @@ import secrets
 import hashlib
 import jwt
 from datetime import datetime, timedelta, timezone
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.exceptions import ResponseValidationError
@@ -350,13 +352,14 @@ def verify_password(plain: str, hashed: str) -> bool:
 # 관리자 인증 의존성 (JWT)
 # ---------------------------------------------------------------------------
 
-# .env에서 비밀번호나 시크릿을 가져옵니다.
-_admin_pass = os.environ.get("ADMIN_PASSWORD", "temp_static_secret_for_jwt")
-_raw_secret = os.environ.get("JWT_SECRET", _admin_pass)
-
-# HS256 알고리즘은 최소 32바이트(256비트)의 키를 권장합니다.
-# 입력된 시크릿이 짧을 경우 취약한 패딩 대신 SHA-256 해시를 사용하여 32바이트의 고정 키를 생성합니다.
+_raw_secret = os.environ.get("JWT_SECRET", "temp_static_secret_for_jwt")
 JWT_SECRET = hashlib.sha256(_raw_secret.encode("utf-8")).hexdigest()
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+ALLOWED_ADMIN_EMAILS = [
+    e.strip()
+    for e in os.environ.get("ALLOWED_ADMIN_EMAILS", "").split(",")
+    if e.strip()
+]
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_MINUTES = 60 * 24  # 1일
 
@@ -897,32 +900,46 @@ def get_presigned_url(
 
 @app.post(
     "/api/admin/login",
-    summary="관리자 로그인",
+    summary="관리자 로그인 (Google OAuth)",
     tags=["admin"],
 )
 def admin_login(payload: AdminAuthRequest):
     """
-    .env의 ADMIN_PASSWORD와 일치하면 JWT 토큰을 발급합니다.
-    ADMIN_PASSWORD가 설정되지 않으면 서비스 사용 불가 상태를 반환합니다.
+    Google ID 토큰을 검증하고 허용된 이메일이면 JWT를 발급합니다.
     """
-    admin_password = os.environ.get("ADMIN_PASSWORD")
-    if not admin_password:
+    if not GOOGLE_CLIENT_ID:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="관리자 비밀번호가 설정되지 않았습니다. 서버 환경변수를 확인하세요.",
+            detail="GOOGLE_CLIENT_ID 환경변수가 설정되지 않았습니다.",
+        )
+    if not ALLOWED_ADMIN_EMAILS:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ALLOWED_ADMIN_EMAILS 환경변수가 설정되지 않았습니다.",
         )
 
-    # Timing attack 방지를 위해 secrets.compare_digest 사용
-    if not secrets.compare_digest(payload.password.encode("utf-8"), admin_password.encode("utf-8")):
+    try:
+        id_info = google_id_token.verify_oauth2_token(
+            payload.id_token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="관리자 비밀번호가 올바르지 않습니다.",
+            detail=f"Google 토큰 검증 실패: {e}",
         )
 
-    # JWT 생성
+    email = id_info.get("email", "")
+    if email not in ALLOWED_ADMIN_EMAILS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="접근 권한이 없는 계정입니다.",
+        )
+
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=JWT_EXPIRATION_MINUTES)
-    to_encode = {"sub": "admin", "exp": expire}
+    to_encode = {"sub": "admin", "email": email, "exp": expire}
     access_token = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
     return {"access_token": access_token, "token_type": "bearer"}

@@ -132,9 +132,9 @@ class AuthResponse(BaseModel):
 
 
 class AdminAuthRequest(BaseModel):
-    """POST /api/admin/auth 요청 바디"""
+    """POST /api/admin/login 요청 바디"""
 
-    password: str
+    id_token: str
 
 
 class ChangePasswordRequest(BaseModel):

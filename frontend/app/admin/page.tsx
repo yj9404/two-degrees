@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice, updateUserPenalty, triggerGenerateDailyMatches, resetUserPassword } from "@/lib/api";
 import AdvancedFilterPanel, { type AdvancedFilterValues } from "@/components/AdvancedFilterPanel";
 import { CheckCircle2, XCircle, Clock, Copy, ExternalLink, MessageSquare, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Download, Megaphone, Trash2, Edit2, History, Zap, Search, KeyRound } from "lucide-react";
@@ -1060,7 +1061,6 @@ export default function AdminPage() {
             setAuthed(true);
         }
     }, []);
-    const [pw, setPw] = useState("");
     const [authError, setAuthError] = useState("");
     const [authLoading, setAuthLoading] = useState(false);
 
@@ -1283,13 +1283,12 @@ export default function AdminPage() {
         }
     };
 
-    // ── 관리자 로그인 ────────────────────────
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
+    // ── 관리자 로그인 (Google OAuth) ─────────
+    const handleGoogleLogin = async (credential: string) => {
         setAuthLoading(true);
         setAuthError("");
         try {
-            const res = await adminAuth(pw);
+            const res = await adminAuth(credential);
             setAdminToken(res.access_token);
             setAuthed(true);
         } catch (err) {
@@ -1614,40 +1613,30 @@ export default function AdminPage() {
     // ─────────────────────────────────────────
     if (!authed) {
         return (
-            <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-                <Card className="w-full max-w-sm shadow-sm">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-slate-900 text-xl">🔐 관리자 로그인</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <div className="space-y-1">
-                                <Label className="text-slate-900 font-semibold text-sm">
-                                    관리자 비밀번호
-                                </Label>
-                                <Input
-                                    id="admin-pw"
-                                    type="password"
-                                    placeholder="비밀번호 입력"
-                                    value={pw}
-                                    onChange={(e) => setPw(e.target.value)}
-                                    required
+            <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
+                <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+                    <Card className="w-full max-w-sm shadow-sm">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-slate-900 text-xl">🔐 관리자 로그인</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {authLoading ? (
+                                <p className="text-slate-500 text-sm text-center">확인 중...</p>
+                            ) : (
+                                <GoogleLogin
+                                    onSuccess={(res) => {
+                                        if (res.credential) handleGoogleLogin(res.credential);
+                                    }}
+                                    onError={() => setAuthError("Google 로그인에 실패했습니다.")}
                                 />
-                            </div>
+                            )}
                             {authError && (
                                 <p className="text-red-500 text-sm">{authError}</p>
                             )}
-                            <Button
-                                type="submit"
-                                disabled={authLoading}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-                            >
-                                {authLoading ? "확인 중..." : "로그인"}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
-            </main>
+                        </CardContent>
+                    </Card>
+                </main>
+            </GoogleOAuthProvider>
         );
     }
 
@@ -1683,7 +1672,7 @@ export default function AdminPage() {
                         variant="outline"
                         size="sm"
                         className="text-slate-500"
-                        onClick={() => setAuthed(false)}
+                        onClick={() => { setAdminToken(null); setAuthed(false); }}
                     >
                         로그아웃
                     </Button>
