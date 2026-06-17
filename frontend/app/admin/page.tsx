@@ -1070,6 +1070,7 @@ export default function AdminPage() {
     const [filterGender, setFilterGender] = useState<"" | "MALE" | "FEMALE">("");
     const [filterActive, setFilterActive] = useState<"" | "true" | "false">("");
     const [filterName, setFilterName] = useState("");
+    const [sortMatchCount, setSortMatchCount] = useState<"" | "asc" | "desc">("");
     const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilterValues>({});
     const advancedFiltersRef = useRef<AdvancedFilterValues>({});
     const [selectedUser, setSelectedUser] = useState<UserReadAdmin | null>(null);
@@ -1650,13 +1651,19 @@ export default function AdminPage() {
     const femaleCount = activeUsers.filter((u: UserReadAdmin) => u.gender === "FEMALE").length;
 
     // 프론트엔드 단에서 리스트 필터링 수행
-    const filteredUsers = users.filter((u: UserReadAdmin) => {
-        if (filterGender && u.gender !== filterGender) return false;
-        if (filterActive === "true" && !u.is_active) return false;
-        if (filterActive === "false" && u.is_active) return false;
-        if (filterName && !u.name.toLowerCase().includes(filterName.toLowerCase())) return false;
-        return true;
-    });
+    const filteredUsers = users
+        .filter((u: UserReadAdmin) => {
+            if (filterGender && u.gender !== filterGender) return false;
+            if (filterActive === "true" && !u.is_active) return false;
+            if (filterActive === "false" && u.is_active) return false;
+            if (filterName && !u.name.toLowerCase().includes(filterName.toLowerCase())) return false;
+            return true;
+        })
+        .sort((a, b) => {
+            if (sortMatchCount === "asc") return (a.match_count || 0) - (b.match_count || 0);
+            if (sortMatchCount === "desc") return (b.match_count || 0) - (a.match_count || 0);
+            return 0;
+        });
 
     return (
         <main className="min-h-screen bg-slate-50 py-6 px-4 lg:px-8">
@@ -1767,6 +1774,15 @@ export default function AdminPage() {
                                     <option value="">활성: 전체</option>
                                     <option value="true">활성</option>
                                     <option value="false">비활성</option>
+                                </select>
+                                <select
+                                    value={sortMatchCount}
+                                    onChange={(e) => setSortMatchCount(e.target.value as typeof sortMatchCount)}
+                                    className="text-sm border border-slate-200 rounded-md px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">매칭 횟수: 기본</option>
+                                    <option value="asc">매칭 횟수: 적은 순</option>
+                                    <option value="desc">매칭 횟수: 많은 순</option>
                                 </select>
                                 <Button size="sm" variant="outline" onClick={fetchUsers} disabled={loadingUsers}>
                                     {loadingUsers ? "로딩 중..." : "새로고침"}
