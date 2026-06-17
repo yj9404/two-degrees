@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import { adminAuth, listUsers, updateUser, deleteUser, createMatching, listMatchings, updateMatchingStatus, setAdminToken, getAdminToken, initAdminTokenFromCookie, getAIRecommendations, getAIRecommendHistory, getAIBatchRecommendations, deleteMatching, markMatchingContactShared, refreshMatchingExpiry, listNotices, createNotice, deleteNotice, updateNotice, updateUserPenalty, triggerGenerateDailyMatches, resetUserPassword } from "@/lib/api";
 import AdvancedFilterPanel, { type AdvancedFilterValues } from "@/components/AdvancedFilterPanel";
@@ -1658,8 +1659,8 @@ export default function AdminPage() {
     });
 
     return (
-        <main className="min-h-screen bg-slate-50 py-8 px-4">
-            <div className="max-w-4xl mx-auto space-y-6">
+        <main className="min-h-screen bg-slate-50 py-6 px-4 lg:px-8">
+            <div className="max-w-screen-xl mx-auto space-y-6">
                 {/* 헤더 */}
                 <div className="flex items-center justify-between">
                     <div>
@@ -1668,14 +1669,21 @@ export default function AdminPage() {
                         </h1>
                         <p className="text-slate-500 text-sm mt-0.5">가입자 목록 및 매칭 풀 관리</p>
                     </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-slate-500"
-                        onClick={() => { setAdminToken(null); setAuthed(false); }}
-                    >
-                        로그아웃
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Link href="/">
+                            <Button variant="outline" size="sm" className="text-slate-500">
+                                메인으로
+                            </Button>
+                        </Link>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-slate-500"
+                            onClick={() => { setAdminToken(null); setAuthed(false); }}
+                        >
+                            로그아웃
+                        </Button>
+                    </div>
                 </div>
 
                 {/* 탭 네비게이션 */}
@@ -1809,7 +1817,7 @@ export default function AdminPage() {
                         {filteredUsers.length === 0 && !loadingUsers ? (
                             <p className="text-center text-slate-400 py-16">가입자가 없습니다.</p>
                         ) : (
-                            <div className="grid grid-cols-1 gap-8">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* 남성 목록 */}
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between border-b border-blue-100 pb-2">
@@ -1966,6 +1974,7 @@ export default function AdminPage() {
                             <p className="text-center text-slate-400 py-16">검색 결과가 없습니다.</p>
                         ) : (
                             <div className="space-y-4">
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                 {filteredMatchings.slice(0, visibleMatchingsCount).map((match) => (
                                     <Card
                                         key={match.id}
@@ -2010,7 +2019,7 @@ export default function AdminPage() {
                                             </div>
                                         </div>
                                         <CardContent className="p-0">
-                                            <div className="grid grid-cols-1 divide-y divide-slate-100">
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
                                                 {/* User A */}
                                                 <div className={`p-4 flex flex-col gap-3 transition-colors ${match.user_a_info.gender === "MALE" ? "bg-blue-50/20" : "bg-pink-50/20"}`}>
                                                     <div
@@ -2086,6 +2095,7 @@ export default function AdminPage() {
                                         </CardContent>
                                     </Card>
                                 ))}
+                                </div>
 
                                 {/* 무한 스크롤 sentinel - 항상 DOM에 유지해야 observer가 끊기지 않음 */}
                                 <div
@@ -2272,7 +2282,7 @@ export default function AdminPage() {
                                 <p className="text-xs mt-1 text-slate-300">다른 이름으로 검색해 보세요.</p>
                             </div>
                         ) : (
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                 {filteredAiHistory.map((hist) => {
                                     const candidateCount = Object.keys(hist.candidate_results).length;
                                     const topScore = candidateCount > 0

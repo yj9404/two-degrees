@@ -43,6 +43,8 @@ export const metadata: Metadata = {
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import MaxWidthWrapper from "@/components/MaxWidthWrapper";
+import AdminLayoutGuard from "@/components/AdminLayoutGuard";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -56,11 +58,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-slate-50`}
       >
-        <Header />
-        <div className="flex-1 w-full max-w-md mx-auto bg-white shadow-sm ring-1 ring-slate-200">
-          {children}
-        </div>
-        <Footer />
+        <AdminLayoutGuard>
+          <Header />
+        </AdminLayoutGuard>
+        <MaxWidthWrapper>{children}</MaxWidthWrapper>
+        <AdminLayoutGuard>
+          <Footer />
+        </AdminLayoutGuard>
         <Analytics />
         <SpeedInsights />
       </body>
