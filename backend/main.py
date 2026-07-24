@@ -51,6 +51,7 @@ from schemas import (
     UserUpdate,
 )
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 _scheduler_secret = os.environ.get("SCHEDULER_SECRET", "")
@@ -123,6 +124,19 @@ _run_migrations()
 # 페널티 스케줄러 (APScheduler) – 매월 1일 0시 penalty_points 초기화
 # ---------------------------------------------------------------------------
 
+def _get_busy_user_ids(db) -> set[str]:
+    """
+    현재 진행 중(REJECTED가 아니고 연락처 미전달)인 매칭에 묶여 있는 유저 ID 집합을 반환합니다.
+    한 유저가 동시에 두 개 이상의 매칭에 들어가지 않도록 하는 모든 매칭 생성 경로에서 공통으로 사용합니다.
+    """
+    busy_matches = db.query(Matching).filter(
+        Matching.user_a_status != MatchStatus.REJECTED,
+        Matching.user_b_status != MatchStatus.REJECTED,
+        Matching.is_contact_shared == False,
+    ).all()
+    return {m.user_a_id for m in busy_matches} | {m.user_b_id for m in busy_matches}
+
+
 def _run_generate_daily_matches() -> dict:
     """
     활성 남녀 유저 풀에서 AI 적합도 50점 이상인 커플 최대 2쌍을 PENDING으로 생성합니다.
@@ -148,12 +162,7 @@ def _run_generate_daily_matches() -> dict:
         females = [u for u in active_users if u.gender == Gender.FEMALE]
         logger.info(f"[DailyScheduler] 활성 유저 — 남: {len(males)}명, 여: {len(females)}명")
 
-        busy_matches = db.query(Matching).filter(
-            Matching.user_a_status != MatchStatus.REJECTED,
-            Matching.user_b_status != MatchStatus.REJECTED,
-            Matching.is_contact_shared == False,
-        ).all()
-        busy_ids = {m.user_a_id for m in busy_matches} | {m.user_b_id for m in busy_matches}
+        busy_ids = _get_busy_user_ids(db)
         logger.info(f"[DailyScheduler] 진행 중 매칭으로 제외된 유저: {len(busy_ids)}명")
 
         all_matches = db.query(Matching.user_a_id, Matching.user_b_id).all()
@@ -257,6 +266,13 @@ def _run_generate_daily_matches() -> dict:
 
             if score < 50:
                 logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — 점수 미달 ({score}점 < 50점)")
+                continue
+
+            # 생성 직전 재검증: Gemini 호출 등으로 시간이 지나는 동안 다른 경로(수동 매칭 생성 등)에서
+            # 두 유저 중 한쪽이 이미 다른 매칭에 묶였을 수 있으므로, 커밋 직전 최신 상태로 다시 확인한다.
+            latest_busy_ids = _get_busy_user_ids(db)
+            if male.id in latest_busy_ids or female.id in latest_busy_ids:
+                logger.info(f"[DailyScheduler] 시도 {attempts}: SKIP — 생성 직전 재검증에서 이미 다른 매칭 진행 중으로 확인됨")
                 continue
 
             sorted_ids = sorted([male.id, female.id])
@@ -1188,6 +1204,15 @@ def create_matching(payload: MatchingCreate, db: Session = Depends(get_db), _adm
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="이미 매칭된 대상입니다.",
+        )
+
+    # 두 유저 중 한쪽이 이미 다른(진행 중인) 매칭에 묶여 있으면 생성을 막는다.
+    busy_ids = _get_busy_user_ids(db)
+    busy_names = [u.name for u in (user_a, user_b) if u.id in busy_ids]
+    if busy_names:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{', '.join(busy_names)}님은 이미 다른 매칭이 진행 중입니다.",
         )
 
     new_matching = Matching(
