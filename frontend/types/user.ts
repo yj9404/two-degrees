@@ -199,6 +199,8 @@ export interface SharedProfileRead {
     current_user_id: string;
     /** 현재 유저의 페널티 정책 동의 여부 */
     has_agreed_penalty_policy: boolean;
+    /** 프로필을 전달받은 대상(A)의 이름 – 본인 확인용 */
+    recipient_name: string;
 }
 
 /** 매칭 응담 요청 */

@@ -309,6 +309,8 @@ class SharedProfileRead(BaseModel):
     # 현재 유저(토큰 소유자) 정보 – 정책 동의 모달 처리용
     current_user_id: str
     has_agreed_penalty_policy: bool = False
+    # 링크를 전달받은 대상(토큰 소유자, A)의 이름 – 본인 확인용
+    recipient_name: str
 
 
 class MatchRespondRequest(BaseModel):

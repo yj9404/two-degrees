@@ -2068,6 +2068,8 @@ def get_shared_profile(token: str, db: Session = Depends(get_db)):
     # 현재 유저(토큰 소유자) 조회 – 정책 동의 상태 확인용
     current_user_id = matching.user_a_id if is_user_a else matching.user_b_id
     current_user = db.query(User).filter(User.id == current_user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="회원 정보를 찾을 수 없습니다.")
 
     # 2026년 기준 나이 계산
     age = 2026 - other_user.birth_year
@@ -2091,6 +2093,7 @@ def get_shared_profile(token: str, db: Session = Depends(get_db)):
         expires_at=matching.expires_at,
         current_user_id=current_user_id,
         has_agreed_penalty_policy=getattr(current_user, "has_agreed_penalty_policy", False) or False,
+        recipient_name=current_user.name,
     )
 
 

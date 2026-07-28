@@ -45,6 +45,12 @@ import {
     ShieldCheck
 } from "lucide-react";
 
+function maskName(name: string): string {
+    if (name.length <= 1) return name;
+    if (name.length === 2) return `${name[0]}*`;
+    return `${name[0]}${"*".repeat(name.length - 2)}${name[name.length - 1]}`;
+}
+
 export default function SharedProfilePage() {
     const { token } = useParams<{ token: string }>();
     const [profile, setProfile] = useState<(SharedProfileRead & { expires_at?: string }) | null>(null);
@@ -54,6 +60,10 @@ export default function SharedProfilePage() {
     const [timeLeft, setTimeLeft] = useState<string>("");
     const [activePhotoIndex, setActivePhotoIndex] = useState(0);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // 본인 확인 상태
+    const [identityConfirmed, setIdentityConfirmed] = useState(false);
+    const [identityRejected, setIdentityRejected] = useState(false);
 
     // 페널티 정책 동의 모달 상태
     const [showPolicyModal, setShowPolicyModal] = useState(false);
@@ -155,7 +165,7 @@ export default function SharedProfilePage() {
 
     // 모달 열림 시 배경 스크롤 차단
     useEffect(() => {
-        if (showPolicyModal) {
+        if (showPolicyModal || (!identityConfirmed && !identityRejected)) {
             document.body.style.overflow = "hidden";
         } else {
             document.body.style.overflow = "";
@@ -163,7 +173,7 @@ export default function SharedProfilePage() {
         return () => {
             document.body.style.overflow = "";
         };
-    }, [showPolicyModal]);
+    }, [showPolicyModal, identityConfirmed, identityRejected]);
 
     useEffect(() => {
         if (!profile?.expires_at) return;
@@ -251,6 +261,30 @@ export default function SharedProfilePage() {
         );
     }
 
+    if (identityRejected) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                <Card className="max-w-md w-full p-8 text-center shadow-sm">
+                    <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                    <h1 className="text-xl font-semibold text-slate-900 mb-2">잘못 전달된 링크인 것 같습니다.</h1>
+                    <p className="text-slate-500 text-sm mb-6">본인 확인이 되지 않아 프로필을 표시할 수 없습니다. 관리자에게 문의해 주세요.</p>
+                    <div className="pt-4 border-t border-slate-100 italic">
+                        <p className="text-slate-400 text-xs mb-3 font-medium">링크가 잘못 전달된 것 같나요?</p>
+                        <a
+                            href="http://pf.kakao.com/_jnxiZX/chat"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 bg-[#FEE500] hover:bg-[#F7E100] text-[#191919] text-xs font-bold py-2.5 px-5 rounded-full transition-all shadow-sm"
+                        >
+                            <MessageCircle size={14} fill="#191919" />
+                            <span>고객센터 문의하기</span>
+                        </a>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
+
     // Derive badge data
     const badges: { label: string; icon: React.ReactNode }[] = [];
     if (profile.age) badges.push({ label: `${profile.age}세`, icon: <Cake className="w-3 h-3" /> });
@@ -277,8 +311,39 @@ export default function SharedProfilePage() {
             className="min-h-screen bg-slate-50 select-none pb-24"
             onContextMenu={(e) => e.preventDefault()}
         >
+            {/* ── 본인 확인 팝업 ── */}
+            {!identityConfirmed && !identityRejected && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="relative w-full max-w-md mx-auto bg-white rounded-2xl shadow-2xl p-6 text-center">
+                        <h2 className="text-base font-bold text-slate-900 leading-snug mb-2">
+                            {maskName(profile.recipient_name)}님에게 전달된 프로필입니다.
+                            <br />
+                            본인이 맞으신가요?
+                        </h2>
+                        <p className="text-xs text-slate-500 mb-6">
+                            잘못 전달된 링크일 경우 프로필이 노출되지 않도록 본인 확인을 진행합니다.
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setIdentityConfirmed(true)}
+                                className="h-12 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all"
+                            >
+                                네, 맞습니다
+                            </button>
+                            <button
+                                onClick={() => setIdentityRejected(true)}
+                                className="h-12 rounded-xl text-sm font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all"
+                            >
+                                아니오
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── 페널티 정책 동의 모달 ── */}
-            {showPolicyModal && (
+            {identityConfirmed && showPolicyModal && (
                 <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center">
                     {/* 딤 배경 – 클릭해도 닫히지 않음 */}
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -402,6 +467,7 @@ export default function SharedProfilePage() {
                     </div>
                 </div>
             )}
+            {identityConfirmed && (
             <div className="max-w-md mx-auto min-h-screen bg-white shadow-sm flex flex-col">
                 {/* Expiration Banner */}
                 {profile.expires_at && (
@@ -646,6 +712,7 @@ export default function SharedProfilePage() {
                     </a>
                 </div>
             </div>
+            )}
         </div>
     );
 }
