@@ -61,6 +61,14 @@ def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[st
     """
     client = _build_client()
 
+    # LLM이 candidate_id(UUID, 36자)를 한 글자도 틀리지 않고 그대로 복사해 돌려주지 못하는 경우가 있어
+    # (응답 후보가 실제 요청 후보와 매칭되지 않아 결과가 통째로 유실되는 문제로 이어짐),
+    # 실제 UUID 대신 짧은 라벨(B1, B2, ...)을 부여해 요청하고 응답 후 실제 UUID로 되돌린다.
+    label_to_id = {f"B{i+1}": c["id"] for i, c in enumerate(candidates)}
+    labeled_candidates = [
+        {**c, "id": label} for label, c in zip(label_to_id.keys(), candidates)
+    ]
+
     system_instruction = (
         "당신은 최고의 매칭 확률을 자랑하는 TwoDegrees의 전문 소개팅 주선자입니다. "
         "전달되는 '기준 유저(User A)'와 여러 '상대 유저(User B)들'의 데이터를 쌍방향으로 분석하여 적합도를 평가하십시오.\n\n"
@@ -84,7 +92,7 @@ def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[st
     # 프롬프트 구성
     prompt = (
         f"기준 유저 (User A):\n{json.dumps(target_user, ensure_ascii=False, indent=2)}\n\n"
-        f"상대 유저들 (User B 목록):\n{json.dumps(candidates, ensure_ascii=False, indent=2)}\n\n"
+        f"상대 유저들 (User B 목록):\n{json.dumps(labeled_candidates, ensure_ascii=False, indent=2)}\n\n"
         "위 상대 유저들(User B) 각각에 대해, 기준 유저(User A)와의 '쌍방향 적합도'를 평가해주세요.\n"
         "다음과 같은 스키마의 JSON 배열 형태로 결과만 반환해야 합니다:\n"
         "- '기준 유저', '상대 유저', '타겟', '후보' 등의 단어를 답변에 일절 쓰지 마십시오.\n"
@@ -92,7 +100,7 @@ def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[st
         "- 주선자가 두 사람에게 동시에 보여주어도 어색하지 않은 '추천 코멘트' 형식으로 작성하십시오.\n\n"
         "[\n"
         "  {\n"
-        '    "candidate_id": "상대 유저의 UUID (반드시 상대방의 id와 정확히 일치해야 함)",\n'
+        '    "candidate_id": "상대 유저 목록에 있는 id 값 그대로 (예: \\"B1\\", \\"B2\\"). 절대 다른 값으로 바꾸거나 지어내지 마십시오.",\n'
         '    "score": 정수 (0~100 사이, 쌍방향 평가 종합 적합도 점수),\n'
         '    "reason": "이 두 사람이 잘 맞는 이유와 소개팅 제안 시 사용할 3~4줄의 추천 멘트 (상호 시너지 위주 작성)"\n'
         "  }\n"
@@ -121,9 +129,20 @@ def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[st
             else:
                 results = []
 
+        # 라벨(B1, B2, ...)을 실제 candidate_id(UUID)로 되돌린다.
+        # 알 수 없는 라벨은 결과에서 제외한다 (실제 후보와 매칭할 수 없으므로).
+        mapped_results = []
+        for r in results:
+            real_id = label_to_id.get(r.get("candidate_id"))
+            if real_id is None:
+                logger.warning(f"[Gemini] 알 수 없는 candidate_id 응답을 무시합니다: {r.get('candidate_id')!r}")
+                continue
+            r["candidate_id"] = real_id
+            mapped_results.append(r)
+
         # 점수 높은 순으로 내림차순 정렬
-        results.sort(key=lambda x: x.get("score", 0), reverse=True)
-        return results
+        mapped_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+        return mapped_results
     except Exception as e:
         logger.error(f"Gemini API 호출 중 에러 발생: {e}")
         return []
