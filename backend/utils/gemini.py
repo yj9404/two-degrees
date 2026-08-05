@@ -108,13 +108,14 @@ def get_ai_recommendations(target_user: Dict[str, Any], candidates: List[Dict[st
     )
 
     try:
-        # 모델 생성 및 콘텐츠 생성 (Gemini 2.5 Flash)
+        # 모델 생성 및 콘텐츠 생성 (Gemini 3.6 Flash)
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=prompt,
             config={
                 "system_instruction": system_instruction,
                 "response_mime_type": "application/json",
+                "thinking_config": {"thinking_level": "LOW"},
             }
         )
 
