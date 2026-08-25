@@ -37,7 +37,7 @@ def _build_client():
         raise RuntimeError("google-genai 패키지가 설치되지 않았습니다.")
 
     project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 
     if project:
         # Vertex AI 모드: GCP IAM/ADC 인증, 후불 청구
