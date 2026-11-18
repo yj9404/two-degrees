@@ -1,1 +1,8 @@
 .claude/settings.local.json
+
+# 로컬 테스트용 SQLite (성능 테스트 더미 데이터) — 저장소에 올리지 않는다
+/twodegrees.db
+
+# 시드 사진: 로컬 전용 (seed_photos/ 원본과 seed_demo.py가 복사한 산출물)
+/seed_photos/
+frontend/public/seed-photos/
