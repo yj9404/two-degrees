@@ -1,0 +1,332 @@
+-- ============================================
+-- [Q1] 전체 가입자 수
+-- 목적: 서비스 총 규모
+-- 예상 결과: 1행. total_all, total_excl_deleted, deleted
+-- ============================================
+#	total_all	total_excl_deleted	deleted
+1	69	61	8
+
+
+-- ============================================
+-- [Q2] 유저 상태 분해
+-- 목적: 규모의 내부 구성(현재 살아있는 풀 / 이탈·매칭종료 / 정지 / 사진 보유)
+-- 예상 결과: 1행. registered, active_in_pool, deactivated, currently_suspended, has_photo
+-- 비고: active_in_pool = is_active(매칭풀 노출). 양측 수락·연락처 전달 시 두 유저 모두 is_active=FALSE 로 전환됨.
+-- ============================================
+#	registered	active_in_pool	deactivated	currently_suspended	has_photo
+1	61	44	17	1	61
+
+
+-- ============================================
+-- [Q3] 통합 퍼널 (유저 단위 · 단계별 distinct 유저 수)
+-- 목적: 가입 → 프로필 → 추천 → 제안 발송 → (열람/본인확인) → 응답 → 수락 → 연락처 전달
+-- 예상 결과: 10행 (stage, users). users 컬럼은 text — 측정 불가 단계는 '측정불가' 문자열.
+-- 주의:
+--   * 03~05 단계는 '관리자 액션'에 의해 진행됨(유저 자발적 이탈이 아님).
+--   * 06 링크열람 / 07 본인확인통과 는 서버 미기록 → '측정불가'.
+--     08 응답완료 가 06·07 의 하한(응답했으면 반드시 열람·본인확인을 거침).
+-- ============================================
+#	stage	users
+1	01_가입	61
+2	02_사진 등록(충실도 프록시)	61
+3	03_AI 추천 타겟	20
+4	04_매칭쌍 생성	56
+5	05_제안 메시지 발송	56
+6	06_링크 열람	측정불가
+7	07_본인확인 통과	측정불가
+8	08_응답 완료(06·07 하한)	54
+9	09_수락	37
+10	10_연락처 전달 완료	56
+
+-- ============================================
+-- [Q4] 매칭쌍 단위 퍼널
+-- 목적: 매칭 1건이 어디까지 진행됐는지 (matchings 테이블 기준, 실측 데이터)
+-- 예상 결과: 1행.
+--   pairs_created, proposal_sent, at_least_one_response, both_responded,
+--   both_accepted, contact_shared, ai_auto_generated, admin_manual
+-- 비고: proposal_sent = expires_at 설정됨(관리자가 제안 메시지 복사 시 1회 설정).
+-- ============================================
+#	pairs_created	proposal_sent	at_least_one_response	both_responded	both_accepted	contact_shared	ai_auto_generated	admin_manual
+1	119	115	114	86	11	115	73	46
+
+
+-- ============================================
+-- [Q5] 성별 비율
+-- 목적: 매칭풀 성비 불균형 (종료 사유 핵심 지표)
+-- 예상 결과: 1~2행 (MALE / FEMALE).
+--   gender, registered, active_in_pool, pct_registered, pct_active
+-- ============================================
+#	gender	registered	active_in_pool	pct_registered	pct_active
+1	FEMALE	41	33	67.2	75.0
+2	MALE	20	11	32.8	25.0
+
+
+-- ============================================
+-- [Q6] 연령대 분포 (5세 단위 · 성별 교차)
+-- 목적: 풀의 연령 편중 확인
+-- 나이 기준: 만 나이 = 2026 - birth_year
+-- 예상 결과: 약 8~20행 (gender × age_band). 5명 미만 셀은 n='<5'.
+-- ============================================
+#	gender	age_band	n
+1	FEMALE	20-24	<5
+2	FEMALE	25-29	20
+3	FEMALE	30-34	16
+4	FEMALE	35-39	<5
+5	FEMALE	40-44	<5
+6	FEMALE	45-49	<5
+7	MALE	25-29	<5
+8	MALE	30-34	14
+9	MALE	35-39	<5
+10	MALE	45-49	<5
+
+-- ============================================
+-- [Q7] 지역 분포 (시/도 근사)
+-- 목적: 활동 지역 편중 확인
+-- 방법: active_area(자유 텍스트, 예: "서울 강남")의 첫 토큰을 시/도로 근사.
+--       NULL/빈값은 '(미입력)'. 5명 미만 시/도는 '기타(소규모 합산)' 로 묶고,
+--       그 합계도 5 미만이면 '<5' 로 표시.
+-- 예상 결과: 약 3~15행 (region_group, n).
+-- 한계: 자유 텍스트라 "서울특별시" / "서울" / "강남" 등 표기가 섞여 있으면 근사 오차 발생.
+-- ============================================
+#	region_group	n
+1	서울	20
+2	기타(소규모 합산)	41
+
+-- ============================================
+-- [Q8] 유저 1인당 조건 충족 후보 수 — 근사 A (나이 선호 미반영)
+-- 목적: 매칭풀 희소성의 하한선(가장 느슨한 조건에서도 후보가 몇 명인지)
+-- 대상 풀: is_active = TRUE, 삭제 아님
+-- 반영 조건: 이성 + 추천인(referrer_name) 상이 + 기존 매칭 이력 없음
+-- ⚠️ 생략한 조건 (코드/자유텍스트에만 존재):
+--     · age_preference / age_gap (→ Q9 에서 반영)
+--     · deal_breakers · desired_conditions 자유 텍스트(흡연·종교·거리·키 등 개별 기피/선호)
+--     · AI 적합도 점수 컷(자동매칭은 50점 이상만 생성)
+--     · 활동지역 근접성, 진행 중 매칭/정지 후보 제외(→ Q9 에서 반영)
+-- ⚠️ 대량 스캔 주의: 활성 유저 자기조인 O(n^2) + 쌍마다 matchings NOT EXISTS.
+-- 예상 결과: 1행. pool_users, mean_candidates, p25, median, p75, min/max, zero_candidate_users, zero_pct
+-- ============================================
+#	pool_users	mean_candidates	p25	median	p75	min_candidates	max_candidates	zero_candidate_users	zero_pct
+1	44	13.68	9	10	14	5	31	0	0.0
+
+
+-- ============================================
+-- [Q9] 유저 1인당 조건 충족 후보 수 — 근사 B (나이 선호 양방향 반영) + 후보 0명 비율
+-- 목적: Q8 + age_preference 양방향 충족 + 진행 중 매칭/정지 후보 제외 → 현실적 후보 수
+-- 대상 풀: is_active = TRUE, 삭제 아님, 정지 아님(penalty_until)
+-- 나이 판정: 백엔드 _filter_by_ref_age 로직 이식. 한국식 나이 = 2026 - birth_year + 1.
+--   age_preference 원소: 'OLDER'(연상) / 'YOUNGER'(연하) / 'SAME'(동갑) / 'ANY'(상관없음)
+--   jsonb_exists(x,'KEY') 는 x ? 'KEY' 와 동일(드라이버 호환 위해 함수형 사용).
+-- ⚠️ 여전히 생략: deal_breakers·desired_conditions 자유 텍스트 조건, AI 점수 컷.
+-- ⚠️ 대량 스캔 주의: Q8 과 동일 구조 + 나이 조건.
+-- 예상 결과: 1행. (컬럼은 Q8 과 동일)
+-- ============================================
+#	pool_users	mean_candidates	p25	median	p75	min_candidates	max_candidates	zero_candidate_users	zero_pct
+1	43	6.84	3	4	6	1	26	0	0.0
+
+
+
+-- ============================================
+-- [Q10] 추천을 한 번도 받지 못한 유저 비율
+-- 목적: 풀 노출 대비 실제 추천 도달률
+-- 정의:
+--   never_targeted     = AI 추천의 '타겟'으로 한 번도 지정되지 않음
+--                        (ai_recommend_histories.target_user_id 및 배치 target_ids 기준)
+--   never_in_any_reco  = 타겟으로도, 후보로도 AI 평가에 한 번도 등장하지 않음
+-- 대상: 삭제 아닌 전체 유저 + is_active 하위집계 별도
+-- 예상 결과: 1행.
+--   pool_users, never_targeted, never_targeted_pct, never_in_any_reco, never_in_any_reco_pct,
+--   never_targeted_active, never_targeted_active_pct
+-- ============================================
+#	pool_users	never_targeted	never_targeted_pct	never_in_any_reco	never_in_any_reco_pct	never_targeted_active	never_targeted_active_pct
+1	61	41	67.2	8	13.1	30	68.2
+
+
+-- ============================================
+-- [Q11] AI 적합도 점수 분포 (매칭풀 '질' 보조 지표)
+-- 목적: AI가 평가한 궁합 점수가 낮게 몰려 있으면 '풀 내 적합한 상대 부족' 서사 근거
+-- 소스:
+--   matching_confirmed = matchings.ai_score (실제 생성된 매칭에 붙은 점수)
+--   cache_all_eval     = candidate_results JSON 에 남은 '평가된 모든 쌍'의 점수
+-- 예상 결과: 1~2행 (src). n<5 인 소스는 참고만.
+--   src, n, mean, p25, median, p75, min, max, pct_below_50, pct_below_60
+-- ============================================
+#	src	n	mean	p25	median	p75	min	max	pct_below_50	pct_below_60
+1	cache_all_eval	148	45.3	18.75	40	75	0	95	54.7	59.5
+2	matching_confirmed	119	78.6	69	83	92	10	100	5.0	10.9
+
+
+-- ============================================
+-- [Q12] 월별 신규 가입 수 (누적 포함)  —  ❌ 측정 불가
+-- 사유: users 테이블에 created_at/가입일시 컬럼이 없고, id 는 시간 정보가 없는 랜덤 UUID(uuid4).
+-- 대체 지표: Q15(월별 매칭 생성 추이·누적), Q18(월별 배치 추천) 으로 서비스 활성도 추이만 근사.
+-- 예상 결과: 1행 (안내 문자열).
+-- ============================================
+SELECT
+  '측정 불가'                                                                       AS status,
+  'users 에 created_at/가입일시 컬럼 없음. id 는 시간정보 없는 uuid4.'              AS reason,
+  '대체: Q15 월별 매칭 생성 추이(누적), Q18 월별 배치 추천'                          AS alternative;
+
+
+-- ============================================
+-- [Q13] 가입 → 프로필 완성 소요 시간 중앙값  —  ❌ 측정 불가
+-- 사유: (1) 가입 일시 컬럼 없음(Q12 참조)  (2) 프로필 등록이 단일 POST /api/users 로 처리되어
+--       '완성' 상태나 전이 이벤트/타임스탬프가 존재하지 않음.
+-- 예상 결과: 1행 (안내 문자열).
+-- ============================================
+SELECT
+  '측정 불가'                                                                       AS status,
+  '가입 일시 없음 + 프로필이 단일 POST 로 생성되어 완성 전이 이벤트가 없음'         AS reason;
+
+
+-- ============================================
+-- [Q14] 가입 후 7일 / 30일 내 재활동 비율  —  ❌ 측정 불가
+-- 사유: 로그인/접속/최종활동 타임스탬프가 저장되지 않음.
+--       POST /api/users/auth 는 검증만 수행하고 아무 것도 기록하지 않음. 세션/이벤트 로그 테이블 없음.
+-- 예상 결과: 1행 (안내 문자열).
+-- ============================================
+SELECT
+  '측정 불가'                                                                       AS status,
+  '로그인/접속/최종활동 로그 없음(auth 는 검증만). 세션·이벤트 로그 테이블 없음.'   AS reason;
+
+
+-- ============================================
+-- [Q15] 월별 매칭 생성 추이 (누적 포함)  —  성장 대체 지표
+-- 목적: 가입 시계열이 없으므로, 매칭 생성량으로 서비스 활성도 추이 근사
+-- 기준: matchings.created_at (UTC)
+-- 예상 결과: 서비스 운영 개월 수만큼 (대략 3~12행).
+--   month, created, ai_auto, manual, with_ai_score, reached_contact_shared, cumulative_created
+-- ============================================
+#	month	created	ai_auto	manual	with_ai_score	reached_contact_shared	cumulative_created
+1	2026-03	19	0	19	19	19	19
+2	2026-04	16	0	16	16	16	35
+3	2026-05	27	24	3	27	27	62
+4	2026-06	22	18	4	22	22	84
+5	2026-07	26	23	3	26	26	110
+6	2026-08	9	8	1	9	5	119
+
+
+-- ============================================
+-- [Q16] 총 LLM 호출 수  —  ❌ 정확 측정 불가 / 하한 지표 제공
+-- 사유: Gemini 호출 로그 테이블 없음, 토큰 usage 미영속(utils/gemini.py).
+-- 대신 아래는 '누적 고유 (타겟,후보) 평가쌍 수' = LLM 평가 처리량의 하한.
+--   (캐시 병합으로 과거 평가가 candidate_results 에 계속 누적 보존됨.
+--    단, 동일 쌍 재평가·배치의 묶음 호출은 미반영 → 실제보다 낮게 나옴)
+-- 예상 결과: 1행.
+--   single_history_rows, distinct_targets, cumulative_evaluated_pairs_floor,
+--   batch_runs, matchings_with_ai_score
+-- ============================================
+#	single_history_rows	distinct_targets	cumulative_evaluated_pairs_floor	batch_runs	matchings_with_ai_score
+1	20	20	148	4	119
+
+
+-- ============================================
+-- [Q17] AiRecommendHistory 캐시 히트율  —  ❌ 측정 불가
+-- 사유: 히트/미스는 요청 처리 중 메모리에서만 계산되고 저장되지 않음.
+--       AiRecommendHistory 는 타겟별 1행을 병합·덮어쓰기(created_at 갱신)하므로
+--       호출 시도 횟수·히트 수를 복원할 수 없음.
+-- 예상 결과: 1행 (안내 문자열).
+-- ============================================
+SELECT
+  '측정 불가'                                                                       AS status,
+  '캐시 히트/미스 미기록. 이력은 타겟별 1행 병합·덮어쓰기라 시도·히트 횟수 복원 불가.' AS reason;
+
+
+-- ============================================
+-- [Q18] 월별 추천 생성 건수
+-- 소스별:
+--   batch(정확)                     = ai_batch_recommend_histories 는 append-only → 신뢰 가능
+--   single_last_activity(근사·과소)  = ai_recommend_histories.created_at 는
+--                                     타겟별 '마지막 추천 활동 시각'만 남김(덮어쓰기) → 과소집계
+-- 예상 결과: (운영 개월 수 × 최대 2 소스) 행. src, month, runs
+-- ============================================
+#	src	month	runs
+1	batch(정확)	2026-04	4
+2	single_last_activity(근사·과소집계)	2026-03	2
+3	single_last_activity(근사·과소집계)	2026-04	1
+4	single_last_activity(근사·과소집계)	2026-05	2
+5	single_last_activity(근사·과소집계)	2026-06	2
+6	single_last_activity(근사·과소집계)	2026-07	5
+7	single_last_activity(근사·과소집계)	2026-08	8
+
+
+-- ============================================
+-- [Q19] 추천 1건당 평균 토큰  —  ❌ 측정 불가
+-- 사유: Gemini 응답의 토큰 usage 를 저장하는 컬럼이 어느 테이블에도 없음
+--       (matchings / ai_recommend_histories / ai_batch_recommend_histories).
+--       utils/gemini.py 도 usage metadata 를 영속화하지 않음.
+-- 예상 결과: 1행 (안내 문자열).
+-- ============================================
+SELECT
+  '측정 불가'                                                                       AS status,
+  '토큰 usage 저장 컬럼 없음. gemini 유틸도 usage metadata 미영속.'                 AS reason;
+
+
+-- ============================================
+-- [Q20] 수동(연락처) 전달 건수
+-- 목적: 운영자가 실제로 연락처를 전달·종결한 건수 (is_contact_shared = 관리자 '전달 완료 처리')
+-- 예상 결과: 1행.
+--   contact_shared_total, from_manual_matching, from_ai_matching,
+--   shared_with_mutual_accept, shared_closed_without_mutual_accept
+-- ============================================
+#	contact_shared_total	from_manual_matching	from_ai_matching	shared_with_mutual_accept	shared_closed_without_mutual_accept
+1	115	46	69	11	104
+
+
+
+-- ============================================
+-- [Q21] 연락처 요청 → 전달까지 소요 시간 중앙값  —  ❌ 측정 불가
+-- 사유: is_contact_shared 는 불리언 플래그만 존재하고 전환 시각(shared_at 등)을 남기지 않음.
+--       matchings 에 있는 시각은 created_at(쌍 생성)과 expires_at(제안 발송 + 24h)뿐이며
+--       '전달 완료 시각' 정보가 없음.
+-- 예상 결과: 1행 (안내 문자열).
+-- ============================================
+SELECT
+  '측정 불가'                                                                       AS status,
+  'is_contact_shared 전환 시각 미기록. 전달 완료 타임스탬프 없음.'                  AS reason;
+
+
+-- ============================================
+-- [Q22] 성별별 1인당 조건 충족 후보 수 (느슨 / 나이 반영 동시)
+-- 목적: 활성 풀의 성비(여>>남)가 실제 후보 수에 어떻게 나타나는지
+-- 대상 풀: is_active = TRUE, 삭제 아님, 정지 아님
+-- loose_*  = 이성 + 추천인 상이 + 기존 매칭 없음        (Q8 조건)
+-- age_*    = loose + 진행중/정지 후보 제외 + age_preference 양방향  (Q9 조건)
+-- ⚠️ 생략: deal_breakers·desired_conditions 자유텍스트, AI 점수 컷.
+-- ⚠️ 대량 스캔 주의: 활성 유저 자기조인.
+-- 예상 결과: 1~2행 (gender).
+--   gender, pool_users, loose_mean, loose_median, age_mean, age_p25, age_median, age_p75,
+--   age_min, age_max, zero_age_users
+-- ============================================
+#	gender	pool_users	loose_mean	loose_median	age_mean	age_p25	age_median	age_p75	age_min	age_max	zero_age_users
+1	FEMALE	33	8.30	9	3.48	2	3	5	1	6	0
+2	MALE	10	27.40	27	17.90	13	19.5	21.75	11	26	0
+
+-- ============================================
+-- [Q23] 지역 분포 — 서울 / 경기·인천 / 기타 3분류 재집계
+-- 목적: Q7(첫토큰 근사)에서 '기타(소규모 합산) 41' 로 뭉개진 부분을 수도권 단위로 재확인
+-- 방법: active_area 자유텍스트에 대해 서울 자치구·수도권 지명 정규식 매칭.
+-- 한계: 여전히 근사(오탈자·동단위 표기·'중구' 등 타지역 동명 지명은 오분류 가능).
+-- 예상 결과: 2~4행 (region, n). 5명 미만은 '<5'.
+-- ============================================
+#	region	n
+1	서울	48
+2	경기·인천	9
+3	기타/미상	<5
+4	(미입력)	<5
+
+
+-- ============================================
+-- [Q24] 매칭 응답 결과 조합 분해
+-- 목적: 119쌍 중 양측 수락이 11건뿐인 이유 — 거절/무응답이 어디서 발생했는지
+-- status_pair: 두 유저 상태를 정렬해 조합으로 표기 (예: 'ACCEPTED + PENDING')
+-- 예상 결과: 3~6행. status_pair, pairs, link_expired, closed
+--   pairs        = 해당 조합의 매칭 수 (5 미만은 '<5')
+--   link_expired = expires_at 가 과거인 수 (무응답 만료 추정)
+--   closed       = is_contact_shared=TRUE (관리자가 매칭 종료 처리)
+-- ============================================
+#	status_pair	pairs	link_expired	closed
+1	ACCEPTED + REJECTED	50	50	50
+2	REJECTED + REJECTED	25	25	25
+3	PENDING + REJECTED	17	17	17
+4	ACCEPTED + ACCEPTED	11	11	11
+5	ACCEPTED + PENDING	11	11	11
